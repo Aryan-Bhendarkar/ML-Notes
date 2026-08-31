@@ -1,0 +1,121 @@
+# web/ — the study platform build
+
+Replaces the old `build.py` + `template.html` + in-browser markdown/math parser.
+The markdown in `notes/<Module>/` stays the single source of truth; this pipeline
+only renders it. **Content fidelity is the contract** (see `WEB_ARTIFACT_PIPELINE.md`):
+nothing dropped, nothing paraphrased, every number verbatim, every ⚠️ kept and made
+*more* visible.
+
+## What it produces
+
+```
+docs/index.html                         ← the course home / library (all 9 modules)
+docs/<module-slug>.html           ← one self-contained file per module
+```
+
+Each module file is a single HTML with all CSS + JS + math assets inlined — no
+external requests, works from `file://`. The nine files share one `localStorage`
+namespace (`mlss:*`) so the home page can add up progress across the whole course.
+
+## Build
+
+```
+cd web
+npm install
+node build.mjs "Supervised Learning"     # build one module (+ refresh the home)
+node build.mjs --home                     # refresh only the home
+```
+
+**One module per invocation.** Each is 30–120k words; quality of the interactive
+work and the diagram redraws collapses if you batch.
+
+The build prints a fidelity report — source vs. rendered counts for `##` sections,
+`<details>` blocks, table rows, ⚠️ flags and `interactive` blocks. They must match.
+
+## How it renders
+
+| Concern | Choice | Why |
+|---|---|---|
+| Markdown | `markdown-it` (+ `markdown-it-deflist`) at build time | maintained; no fragile in-browser regex parser |
+| Math | `temml` → MathML, rendered at build time, inlined | LaTeX→MathML by a KaTeX author, **no font files**, MathML Core is native in current browsers, zero runtime cost |
+| Callouts | fixed token map 📚💡⚠️🧪🎯🔬🩹 → `callout-{bg,key,warn,lab,int,res,recon}` | one colour = one meaning in every module (the memory aid) |
+| Symbol tables | `\| Symbol \| …` tables get `.symtab` and bind to the equation directly above | a scroll must never separate a formula from what its symbols mean |
+| ASCII diagrams | detected by box-drawing chars, styled `figure.ascii` | *(SVG redraws are a later pass — see below)* |
+| Cross-refs | `§14`, `Part 2 §6` → in-artifact links (works even mid-sentence beside math/code); `Supervised Learning Part 1 §8` → link to that module's file; unresolvable → styled dead link | never a broken anchor |
+| `interactive` blocks | real components where feasible (`web/interactive.js`), keyed by `title:` | the rest render the `fallback` as complete standalone prose — never an inert stub |
+
+## Design — "Study lamp"
+
+One mode. Warm charcoal ground (`#1B1A17`, never blue-black), warm paper-grey
+text (`#E5DED1`, ~12:1), a single muted-sage accent (`#A6C9A8`) used only for
+structure — section numbers, your position, boxed results, progress. Links are a
+separate desaturated slate-blue so a link never reads as a heading. Serif body
+(`Charter`/`Sitka Text`) at 19px/1.75, 64ch. The seven callout hues keep one
+fixed meaning across every module. Highlighter palette: gold / teal / coral /
+lilac (pastels bright enough to read on the dark ground).
+
+Highlights are stored as a character offset + length into the section's text and
+re-wrapped across every text node the span touches on load, so a selection that
+crosses a `**bold**` run (or any element boundary) highlights correctly.
+
+### Layout
+- **Left rail = the course spine** and nothing else: the module's lectures with
+  progress bars, the current lecture's sections nested and grouped under the
+  deck's own "Part N" dividers, then the other 8 modules collapsed. Replaces the
+  old header dots + separate module list + right-rail outline.
+- **Right rail = your work only**: the phase chips, your highlights, your notes.
+- Reading column: one title (the doc's own `#`/`###` are folded into the header),
+  section numbers hang in the left margin, part dividers are landmarks.
+- Header: `‹ module` · a slim module progress bar · focus · search · work · help.
+
+### Tracking — the reading guide's phases
+*First pass* is the `##` checkboxes rolled up to a %. *Second pass* opens a
+filtered view — just this lecture's 🧪 examples, solutions blanked. *Interview
+prep* opens the *Putting it together* + *Interview prep* + *Check yourself*
+sections as one set. No streaks, no points, no badges.
+
+### Spaced review (`app.js`)
+Every glossary term (table **and** `- **Term** — …` list form), every
+Check-yourself question, and every Interview question is auto-extracted into a
+per-course flashcard deck — **~1,670 cards**. A card enters the deck once its
+lecture is started (any section done). Leitner boxes 0–4 → **1, 3, 8, 21, 60**-day
+intervals; *Got it* advances a box, *Shaky* → tomorrow, *No idea* → box 0 + again
+this session. A full-screen review session (`R`, or the `↻` header button with a
+due badge) drives due cards + up to 15 new, one at a time. `Export … for Anki`
+writes a tab-separated `.txt` (math as `\(TeX\)`). State: `mlss:srs`; each module
+writes `mlss:cardstats` so the home shows due/new counts without loading content.
+
+### Pacing (home)
+Course ≈ 74 h first-pass reading at 130 wpm (~162 h with second pass + interview).
+A "h/week" slider (`mlss:plan`) projects finish dates; `mlss:log` records minutes
+per day (from section check-offs, 120-day window) to show actual pace vs target —
+honest, no guilt framing.
+
+## Build status — all 9 modules
+
+Every module builds with all fidelity counts matching source:
+**796 `##` sections · 322 `<details>` · 5,220 table rows · 418 ⚠️ flags · 118 `interactive` blocks** —
+0 Temml errors, 0 leftover placeholders, 0 JS errors across every file (jsdom smoke).
+
+A rendering-analysis pass (`web/_analyze.mjs`, kept as a dev tool) checks the built
+DOM for ~20 gap classes — unlinked `§` refs, missed callouts, raw LaTeX in
+fallbacks, ragged tables, cross-module mislinks, thin sections, escaped HTML, etc.
+Current result: clean except two known false positives (prose that mentions the
+literal string `##`, and a source `$\sqrt{}$` shorthand).
+
+Fixes from that pass: `§` refs now link even inside sentences that also contain
+`$math$`/`code`; `Module-name Part N §M` links to that module's file; nested
+`> ⚠️` callouts convert; `interactive` fallbacks render their `$math$`;
+`## Part A — …` sub-dividers render as dividers and are excluded from progress %.
+
+`web/interactive.js` implements **28** of the 118 interactive blocks as real
+figures (sliders / live plots / bar charts, all inline SVG, no deps). The other
+90 render their `fallback` as complete standalone teaching prose. To add more,
+add an entry to `INTERACTIVE` keyed by the block's exact `title:`.
+
+## Still to do (later passes)
+
+- More interactive figures (28 / 118 done — the highest-value sliders per module)
+- SVG redraws of ASCII diagrams (kept as styled `<pre>` for now)
+- Syntax highlighting for `python` blocks (styled, not tokenised)
+- Real-browser visual QA pass (all testing so far is jsdom + fidelity counts)
