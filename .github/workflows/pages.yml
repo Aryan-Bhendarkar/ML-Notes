@@ -1,0 +1,79 @@
+name: Build & deploy site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'notes/**'
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install build deps
+        working-directory: web
+        run: npm ci
+
+      - name: Build every module
+        working-directory: web
+        run: |
+          set -e
+          modules=(
+            "Supervised Learning"
+            "Deep Neural Networks"
+            "Dimensionality Reduction"
+            "Unsupervised Learning"
+            "GenAI & LLM"
+            "Sequential Learning"
+            "Causal Inference"
+            "Reinforcement Learning"
+            "Agentic AI"
+          )
+          for m in "${modules[@]}"; do
+            node build.mjs "$m"
+          done
+          node build.mjs --home
+
+      - name: Warn if committed docs/ were stale
+        run: |
+          if ! git diff --quiet -- docs/; then
+            echo "::warning::docs/ in the repo is out of date with notes/. Run the web build and commit docs/ to keep the repo in sync (the deploy below uses the fresh build regardless)."
+            git diff --stat -- docs/ || true
+          fi
+
+      - name: Keep Jekyll off
+        run: touch docs/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
