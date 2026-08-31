@@ -14,6 +14,8 @@ const ROOT = path.resolve(HERE, '..');
 const NOTES = path.join(ROOT, 'notes');
 // build output — serve this folder with GitHub Pages (Settings ▸ Pages ▸ main /docs)
 const DIST = path.join(ROOT, 'docs');
+// canonical origin for <link rel=canonical> and Open Graph URLs
+const SITE = 'https://aryan-bhendarkar.github.io/ML-Notes';
 const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const readMd = p => fs.readFileSync(p, 'utf8').replace(/\r\n?/g, '\n');
 
@@ -122,8 +124,17 @@ function buildModule(mod, course) {
   const tpl = fs.readFileSync(path.join(HERE, 'app.template.html'), 'utf8');
   const appJs = fs.readFileSync(path.join(HERE, 'app.js'), 'utf8');
   const ivJs = fs.readFileSync(path.join(HERE, 'interactive.js'), 'utf8');
+  const words = Math.round(mod.wordCount / 1000);
+  const lecN = mod.lectures.filter(l => !l.bridge).length;
+  const meta = metaHead({
+    title: `${mod.name} · Amazon ML Summer School`,
+    desc: `Mastery-grade self-study notes for the Amazon ML Summer School ${mod.name} module — `
+      + `${lecN} lectures, every term defined, every formula derived, every example worked through. ~${words}k words.`,
+    url: `${SITE}/${mod.slug}.html`,
+  });
   const html = tpl
     .replace(/__MODULE__/g, esc(mod.name))
+    .replace('__META__', () => meta)
     .replace('__MATH_CSS__', () => mathCss())
     .replace('__IV_JS__', () => ivJs)
     .replace('__APP_JS__', () => appJs)
@@ -164,12 +175,38 @@ function buildHome(course) {
       wordCount: m.wordCount,
     })),
   };
-  const html = tpl.replace('__DATA__', () => JSON.stringify(payload).replace(/<\/script>/gi, '<\\/script>'));
+  const meta = metaHead({
+    title: 'Amazon ML Summer School — study notes',
+    desc: 'Self-study notes for all nine modules of the Amazon ML Summer School: Supervised Learning, '
+      + 'Deep Neural Networks, Dimensionality Reduction, Unsupervised Learning, GenAI & LLMs, Sequential '
+      + 'Learning, Causal Inference, Reinforcement Learning and Agentic AI. 29 lectures, ~652k words.',
+    url: `${SITE}/`,
+  });
+  const html = tpl
+    .replace('__META__', () => meta)
+    .replace('__DATA__', () => JSON.stringify(payload).replace(/<\/script>/gi, '<\\/script>'));
   fs.mkdirSync(DIST, { recursive: true });
   fs.writeFileSync(path.join(DIST, 'index.html'), html);
 }
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escAttr = s => esc(s).replace(/"/g, '&quot;');
+
+// the <head> meta block injected at __META__ — charset/viewport/title live in the template
+function metaHead({ title, desc, url }) {
+  return [
+    `<meta name="description" content="${escAttr(desc)}">`,
+    `<link rel="canonical" href="${escAttr(url)}">`,
+    `<meta name="robots" content="index,follow">`,
+    `<meta name="color-scheme" content="dark">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="Amazon ML Summer School — study notes">`,
+    `<meta property="og:title" content="${escAttr(title)}">`,
+    `<meta property="og:description" content="${escAttr(desc)}">`,
+    `<meta property="og:url" content="${escAttr(url)}">`,
+    `<meta name="twitter:card" content="summary">`,
+  ].join('\n');
+}
 
 // Temml's stylesheet + its tiny script font, inlined so math renders offline
 // with zero external requests (MathML Core is native in current browsers).
