@@ -66,6 +66,18 @@ They must match; the build is the contract that nothing is dropped or paraphrase
 
 ## Deployment
 
-GitHub Pages is served from `main` → `/docs`. `docs/.nojekyll` disables Jekyll so
-every asset is served as-is. Re-run the build for a module and commit the changed
-`docs/*.html` to publish an update.
+GitHub Pages serves this site. `docs/.nojekyll` disables Jekyll so every asset is
+served as-is, and `docs/404.html` catches bad URLs.
+
+A GitHub Actions workflow (`.github/workflows/pages.yml`) rebuilds every module and
+deploys on any push that touches `notes/**` or `web/**`. To publish by hand
+instead, re-run `node build.mjs "<Module>"` and commit the changed `docs/*.html`.
+
+## License & attribution
+
+- **Code** (`*.py`, `scripts/`, `web/`) — [MIT](LICENSE).
+- **Notes** (`notes/`, `docs/`) — [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+These are **unofficial, personal study notes**. Not affiliated with, endorsed by,
+or produced by Amazon. Lecture and slide content, and the "Amazon ML Summer
+School" name, belong to their respective owners.
