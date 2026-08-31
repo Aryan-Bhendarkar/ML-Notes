@@ -1,0 +1,15 @@
+# Normalise line endings: store LF in the repo, check out LF everywhere.
+* text=auto eol=lf
+
+# Binary assets (none committed yet, but declare intent)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.zip  binary
+*.woff  binary
+*.woff2 binary
+
+# Generated site — collapse in PR diffs, still tracked
+docs/*.html linguist-generated=true
