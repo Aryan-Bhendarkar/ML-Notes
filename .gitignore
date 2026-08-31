@@ -1,0 +1,17 @@
+# large upstream data — kept locally as provenance, never committed
+output/
+slides_deduped/
+
+# python
+__pycache__/
+*.pyc
+
+# node
+web/node_modules/
+
+# os
+.DS_Store
+Thumbs.db
+
+# claude code local settings
+.claude/
