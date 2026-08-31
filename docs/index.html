@@ -1,0 +1,259 @@
+<title>Amazon ML Summer School — the course</title>
+<style>
+:root{
+  --bg:#1B1A17; --surface:#242119; --surface-2:#16140F; --raised:#2C2820;
+  --rule:#37332B; --rule-2:#4C4739;
+  --ink:#EDE6D7; --ink-2:#B4AA95; --ink-3:#7C7361;
+  --accent:#8CDCA6; --accent-dim:#4FA073; --accent-wash:#1E3025;
+  --link:#93BFCE; --c-lab:#79C7A2;
+  --font-body:Charter,"Sitka Text","Iowan Old Style","Palatino Linotype",Cambria,Georgia,serif;
+  --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:18px;line-height:1.7;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:60px 24px 140px}
+a{color:var(--link)}
+h1{font-family:var(--font-body);font-size:32px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.sub{font-family:var(--font-ui);font-size:14px;color:var(--ink-2);margin:0 0 40px}
+
+.now{border:1px solid var(--rule);border-radius:14px;background:var(--surface);padding:22px 26px;margin-bottom:36px}
+.now h2{font-family:var(--font-ui);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);margin:0 0 12px}
+.now-row{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.now-headline{font-family:var(--font-body);font-size:21px;flex:1;min-width:240px}
+.now-headline b{color:var(--accent);font-weight:700}
+.go{font-family:var(--font-ui);font-size:13px;font-weight:650;padding:9px 18px;border-radius:9px;background:var(--accent);color:#231a0b;text-decoration:none;white-space:nowrap}
+.go.ghost{background:none;border:1px solid var(--rule-2);color:var(--ink-2)}
+.stats{display:flex;gap:28px;font-family:var(--font-ui);font-size:12.5px;color:var(--ink-3);margin-top:16px;flex-wrap:wrap}
+.stats b{color:var(--ink);font-variant-numeric:tabular-nums;font-size:17px;display:block;font-weight:700}
+.stats .accent b{color:var(--accent)}
+
+.path{position:relative}
+.path::before{content:"";position:absolute;left:19px;top:20px;bottom:40px;width:2px;background:var(--rule)}
+.mod{position:relative;padding-left:52px;margin-bottom:8px}
+.mod-dot{position:absolute;left:11px;top:16px;width:18px;height:18px;border-radius:50%;background:var(--surface);
+  border:2px solid var(--rule-2);z-index:1}
+.mod.done .mod-dot{background:var(--c-lab);border-color:var(--c-lab)}
+.mod.here .mod-dot{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.mod.part .mod-dot{background:linear-gradient(var(--c-lab) 50%,var(--surface) 50%)}
+.mod-card{border:1px solid var(--rule);border-radius:12px;background:var(--surface);overflow:hidden}
+.mod.here .mod-card{border-color:var(--accent-dim)}
+.mod-h{display:flex;align-items:center;gap:14px;padding:15px 18px;cursor:pointer;font-family:var(--font-ui)}
+.mod-t{flex:1;min-width:0}
+.mod-t b{font-size:15.5px;font-weight:660;display:block}
+.mod-t span{font-size:11.5px;color:var(--ink-3)}
+.mod-bar{width:100px;height:5px;border-radius:3px;background:var(--rule);flex:none;overflow:hidden}
+.mod-bar i{display:block;height:100%;background:var(--c-lab)}
+.mod-pct{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;width:36px;text-align:right;flex:none}
+.mod-lecs{display:none;padding:0 18px 12px;border-top:1px solid var(--rule)}
+.mod.open .mod-lecs{display:block}
+.mod-lecs a{display:flex;gap:11px;align-items:baseline;padding:9px 4px;text-decoration:none;color:var(--ink-2);
+  font-family:var(--font-ui);font-size:13px;border-bottom:1px solid var(--rule)}
+.mod-lecs a:last-child{border-bottom:0}
+.mod-lecs a:hover{color:var(--ink)}
+.mod-lecs .ll{color:var(--accent);font-weight:700;flex:none;font-size:11px;width:56px}
+.mod-lecs .li{flex:1}
+.mod-lecs .lp{color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+.mod-lecs .ld{color:var(--c-lab);flex:none;font-size:11px}
+.foot{margin-top:44px;font-family:var(--font-ui);font-size:12px;color:var(--ink-3);line-height:1.7;max-width:60ch}
+.foot b{color:var(--ink-2)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:34px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{border:1px solid var(--rule);border-radius:13px;background:var(--surface);padding:18px 20px}
+.panel h2{font-family:var(--font-ui);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);margin:0 0 10px}
+.p-lead{font-family:var(--font-ui);font-size:13px;color:var(--ink-2);line-height:1.6;margin:0 0 12px}
+.p-lead b{color:var(--accent);font-variant-numeric:tabular-nums}
+#rvList a{display:flex;justify-content:space-between;font-family:var(--font-ui);font-size:13px;text-decoration:none;
+  color:var(--ink-2);padding:7px 0;border-top:1px solid var(--rule)}
+#rvList a:hover{color:var(--ink)}
+#rvList a b{color:var(--c-key);font-variant-numeric:tabular-nums}
+#rvList .rv-go{margin-top:10px;display:inline-block;font-size:12px;font-weight:650;color:#231a0b;background:var(--accent);
+  padding:7px 14px;border-radius:8px}
+.p-slider{display:block;font-family:var(--font-ui);font-size:13px;color:var(--ink-2);margin:6px 0 4px}
+.p-slider input{width:100%;accent-color:var(--accent);margin:8px 0 2px;display:block}
+.p-slider b{color:var(--ink)}
+.p-proj{font-family:var(--font-ui);font-size:13px;color:var(--ink);line-height:1.6;margin:8px 0 0}
+.p-proj b{color:var(--accent)}
+.p-actual{font-family:var(--font-ui);font-size:12px;color:var(--ink-3);margin:8px 0 0}
+.p-actual.behind b{color:var(--c-warn)} .p-actual.ontrack b{color:var(--c-lab)}
+</style>
+
+<div class="wrap">
+  <h1>Amazon ML Summer School</h1>
+  <p class="sub">Nine modules · <span id="lecN">29</span> lectures · self-study notes, worked from the verified slide capture. Everything is saved in this browser only.</p>
+
+  <div class="now">
+    <h2 id="nowH">Start here</h2>
+    <div class="now-row">
+      <div class="now-headline" id="nowText">Begin with <b>Supervised Learning</b> — every later module leans on its bias–variance decomposition and its metrics.</div>
+      <a class="go" id="nowGo" href="./supervised-learning.html">Open →</a>
+    </div>
+    <div class="stats">
+      <span><b id="sSec">0 / 0</b> sections understood</span>
+      <span><b id="sLec">0 / 0</b> lectures past a first pass</span>
+      <span class="accent"><b id="sDue">0</b> cards due for review</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="panel" id="reviewPanel" hidden>
+      <h2>Spaced review</h2>
+      <p class="p-lead"><b id="rvDue">0</b> cards due right now. Glossary terms and Check-yourself / Interview
+        questions become cards that resurface on a widening schedule.</p>
+      <div id="rvList"></div>
+    </div>
+    <div class="panel">
+      <h2>Pacing</h2>
+      <p class="p-lead">The whole course is ≈ <b id="pcTotal">—</b> of first-pass reading at 130&nbsp;wpm,
+        roughly <b id="pcFull">—</b> including second pass and interview prep.</p>
+      <label class="p-slider">I can study
+        <input type="range" id="hpw" min="2" max="20" step="1" value="6">
+        <b><span id="hpwV">6</span> h / week</b></label>
+      <p class="p-proj" id="pcProj"></p>
+      <p class="p-actual" id="pcActual"></p>
+    </div>
+  </div>
+
+  <div class="path" id="path"></div>
+
+  <p class="foot">
+    <b>Reading guide.</b> First pass — read a lecture linearly, skip the interactive blocks.
+    Second pass — work every 🧪 example on paper before reading the solution.
+    Before an interview — the <em>Putting it together</em> threads, the whiteboard derivations, the depth-probe tables.
+  </p>
+</div>
+
+<script id="DATA" type="application/json">{"modules":[{"n":1,"slug":"supervised-learning","name":"Supervised Learning","lectures":[{"num":"01","kind":"lecture","label":"Part 1","short":"Part 1 · Problem Formulation, Data Discipline, Bias–Variance &…","instructor":"Apoorva Singh (Applied Scientist II, Amazon)","sections":25},{"num":"02","kind":"lecture","label":"Part 2","short":"Part 2 · Losses, Optimisation, Metrics & Three Classical…","instructor":"Vikas Raykar","sections":33},{"num":"03","kind":"lecture","label":"Part 3","short":"Part 3 · Trees, Ensembles, and the Machinery Around the Model","instructor":"Sandeep Chatterjee","sections":25},{"num":"04","kind":"practicum","label":"Practicum","short":"applied-scientist-practicum","instructor":"","sections":7}],"lectureCount":3,"sectionCount":90,"wordCount":86198},{"n":2,"slug":"deep-neural-networks","name":"Deep Neural Networks","lectures":[{"num":"04","kind":"lecture","label":"Part 1","short":"Part 1 · Deep Learning Fundamentals","instructor":"","sections":37},{"num":"05","kind":"lecture","label":"Part 2","short":"Part 2 · Training Deep Networks & Convolutional Neural Networks","instructor":"Upasana Ramakrishnan","sections":39},{"num":"06","kind":"lecture","label":"Part 3","short":"Part 3 · Recurrent Networks and PyTorch in Practice","instructor":"Rudra Singh","sections":37}],"lectureCount":3,"sectionCount":113,"wordCount":98639},{"n":3,"slug":"dimensionality-reduction","name":"Dimensionality Reduction","lectures":[{"num":"07","kind":"lecture","label":"Part 1","short":"Part 1 · The Curse, Feature Selection, and the Linear Algebra…","instructor":"","sections":42},{"num":"08","kind":"lecture","label":"Part 2","short":"Part 2 · SVD, PCA, Matrix Factorization, and the t-SNE/UMAP Family","instructor":"Charul Paliwal","sections":39},{"num":"09","kind":"lecture","label":"Part 3","short":"Part 3 · Dimensionality Reduction in the Age of LLMs &…","instructor":"Ravi Sankar Adepu","sections":29}],"lectureCount":3,"sectionCount":110,"wordCount":93488},{"n":4,"slug":"unsupervised-learning","name":"Unsupervised Learning","lectures":[{"num":"10","kind":"lecture","label":"Part 1","short":"Part 1 · Clustering & Density Estimation","instructor":"","sections":41},{"num":"11","kind":"lecture","label":"Part 2","short":"Part 2 · Gaussian Mixture Models & the EM Algorithm","instructor":"","sections":20},{"num":"12","kind":"lecture","label":"Part 3","short":"Part 3 · Generative Modeling — VAEs and GANs","instructor":"","sections":29},{"num":"13","kind":"lecture","label":"Part 4","short":"Part 4 · Diffusion Models and Flow Matching","instructor":"","sections":24}],"lectureCount":4,"sectionCount":114,"wordCount":68737},{"n":5,"slug":"genai-llm","name":"GenAI & LLM","lectures":[{"num":"01","kind":"lecture","label":"Part 1","short":"Part 1 · Foundations, Scale, and the Transformer","instructor":"","sections":25},{"num":"02","kind":"lecture","label":"Lecture 2","short":"Alignment & Training: Turning a Predictor into an Assistant","instructor":"","sections":21},{"num":"03","kind":"lecture","label":"Lecture 3","short":"Using & Serving LLMs: Seven Levers on Three Axes","instructor":"","sections":36},{"num":"04","kind":"lecture","label":"Lecture 4","short":"Beyond Text: Multimodal Models and Diffusion","instructor":"","sections":31}],"lectureCount":4,"sectionCount":113,"wordCount":116285},{"n":6,"slug":"sequential-learning","name":"Sequential Learning","lectures":[{"num":"18","kind":"lecture","label":"Part 1","short":"Part 1 · Text Representations, From Discrete Symbols to…","instructor":"","sections":17},{"num":"19","kind":"lecture","label":"Part 2","short":"Part 2 · From Context to Attention","instructor":"","sections":19},{"num":"20","kind":"lecture","label":"Part 3","short":"Part 3 · Subword Tokenization, the Transformer, and Language…","instructor":"","sections":29}],"lectureCount":3,"sectionCount":65,"wordCount":32711},{"n":7,"slug":"causal-inference","name":"Causal Inference","lectures":[{"num":"21","kind":"lecture","label":"Part 1","short":"Part 1 · Foundations, Graphical Models, and do-Calculus","instructor":"","sections":17},{"num":"22","kind":"lecture","label":"Part 2","short":"Part 2 · Treatment Effects, Identification, and Classical…","instructor":"","sections":24},{"num":"23","kind":"lecture","label":"Part 3","short":"Part 3 · Causal ML Methods for Treatment Effect Estimation","instructor":"","sections":20}],"lectureCount":3,"sectionCount":61,"wordCount":29247},{"n":8,"slug":"reinforcement-learning","name":"Reinforcement Learning","lectures":[{"num":"24","kind":"lecture","label":"Part 1","short":"Part 1 · Foundations, MDPs, and Bellman Equations","instructor":"","sections":21},{"num":"25","kind":"lecture","label":"Part 2","short":"Part 2 · From Planning to Learning","instructor":"","sections":21},{"num":"26","kind":"lecture","label":"Part 3","short":"Part 3 · From Policy Gradients to Human Feedback","instructor":"","sections":20}],"lectureCount":3,"sectionCount":62,"wordCount":24996},{"n":9,"slug":"agentic-ai","name":"Agentic AI","lectures":[{"num":"27","kind":"lecture","label":"Part 1","short":"Part 1 · Fundamentals, Architectures, and Reasoning","instructor":"","sections":14},{"num":"28","kind":"lecture","label":"Part 2","short":"Part 2 · Tools, Memory, and MCP","instructor":"","sections":23},{"num":"29","kind":"lecture","label":"Part 3","short":"Part 3 · Multi-Agent Systems, Workflows, and Production","instructor":"","sections":24}],"lectureCount":3,"sectionCount":61,"wordCount":22616}]}</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById('DATA').textContent);
+const g = (k, d) => { try { const v = localStorage.getItem('mlss:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const DONE = g('done', {}), PHASE = g('phase', {}), RATE = g('rate', {}), REVIEW = g('review', {}),
+      LAST = g('last', null), SRS = g('srs', {}), LOG = g('log', {}), PLAN = g('plan', {}), CARDSTATS = g('cardstats', {});
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const now = Date.now(), DAY = 864e5;
+
+document.getElementById('lecN').textContent = DATA.modules.reduce((a, m) => a + (m.lectureCount || m.lectures.length), 0);
+
+let totSec = 0, dnSec = 0, totLec = 0, dnLec = 0;
+const modState = DATA.modules.map(m => {
+  const dn = Object.keys(DONE).filter(k => k.startsWith(m.slug + '-') && DONE[k]).length;
+  totSec += m.sectionCount; dnSec += Math.min(dn, m.sectionCount);
+  m.lectures.forEach(l => {
+    if (l.kind === 'practicum') return;
+    totLec++;
+    if ((PHASE[`${m.slug}-${l.num}`] || {}).first) dnLec++;
+  });
+  const pct = m.sectionCount ? Math.round(dn / m.sectionCount * 100) : 0;
+  return { m, dn, pct, state: pct >= 100 ? 'done' : pct > 0 ? 'part' : '' };
+});
+
+// where are you? first module that isn't finished
+let hereIx = modState.findIndex(s => s.state !== 'done');
+if (hereIx < 0) hereIx = DATA.modules.length - 1;
+if (LAST && LAST.mod) { const i = DATA.modules.findIndex(m => m.slug === LAST.mod); if (i >= 0) hereIx = i; }
+modState[hereIx].state = modState[hereIx].state || 'here';
+
+document.getElementById('path').innerHTML = modState.map((s, i) => {
+  const m = s.m;
+  const cls = i === hereIx ? (s.state === 'done' ? 'done here' : s.pct > 0 ? 'part here' : 'here')
+    : s.state === 'done' ? 'done' : s.pct > 0 ? 'part' : '';
+  const lecs = m.lectures.map(l => {
+    const id = `${m.slug}-${l.num}`;
+    const secDone = Object.keys(DONE).filter(k => k.startsWith(id + '-s') && DONE[k]).length;
+    const lpct = l.sections ? Math.round(secDone / l.sections * 100) : 0;
+    const first = (PHASE[id] || {}).first;
+    return `<a href="./${m.slug}.html#${id}">
+      <span class="ll">${l.kind === 'practicum' ? 'Practicum' : l.label}</span>
+      <span class="li">${esc(l.short)}${l.instructor ? ' · ' + esc(l.instructor) : ''}</span>
+      <span class="lp">${lpct}%</span>
+      <span class="ld">${first ? '✓' : ''}</span></a>`;
+  }).join('');
+  return `<div class="mod ${cls}" data-slug="${m.slug}">
+    <span class="mod-dot"></span>
+    <div class="mod-card">
+      <div class="mod-h">
+        <span class="mod-t"><b>${m.n}. ${esc(m.name)}</b><span>${m.lectureCount || m.lectures.length} lectures · ${m.sectionCount} sections · ~${Math.round(m.wordCount / 1000)}k words</span></span>
+        <span class="mod-bar"><i style="width:${s.pct}%"></i></span>
+        <span class="mod-pct">${s.pct}%</span>
+      </div>
+      <div class="mod-lecs">${lecs}</div>
+    </div>
+  </div>`;
+}).join('');
+
+document.querySelectorAll('.mod-h').forEach(h => h.onclick = e => { if (!e.target.closest('a')) h.closest('.mod').classList.toggle('open'); });
+document.querySelector(`.mod[data-slug="${DATA.modules[hereIx].slug}"]`)?.classList.add('open');
+
+document.getElementById('sSec').textContent = `${dnSec} / ${totSec}`;
+document.getElementById('sLec').textContent = `${dnLec} / ${totLec}`;
+
+/* ── spaced review ── */
+const dueByMod = {};
+Object.entries(SRS).forEach(([k, s]) => { if (s && s.due <= now) { const slug = k.split('::')[0]; dueByMod[slug] = (dueByMod[slug] || 0) + 1; } });
+// fold in "new" cards from module pages that have reported stats
+Object.entries(CARDSTATS).forEach(([slug, c]) => { if (c && c.fresh && !dueByMod[slug]) dueByMod[slug] = 0; });
+const totalDue = Object.values(dueByMod).reduce((a, b) => a + b, 0);
+const totalFresh = Object.values(CARDSTATS).reduce((a, c) => a + (c.fresh || 0), 0);
+document.getElementById('sDue').textContent = totalDue;
+if (totalDue || totalFresh) {
+  document.getElementById('reviewPanel').hidden = false;
+  document.getElementById('rvDue').textContent = totalDue;
+  const seen = new Set([...Object.keys(dueByMod), ...Object.keys(CARDSTATS)]);
+  const rows = [...seen].map(slug => {
+    const due = dueByMod[slug] || 0, fresh = (CARDSTATS[slug] || {}).fresh || 0;
+    if (!due && !fresh) return ['', 0];
+    const m = DATA.modules.find(x => x.slug === slug);
+    const label = due ? `${due} due` : `${fresh} new`;
+    return [`<a href="./${slug}.html#review"><span>${esc(m ? m.name : slug)}</span><b>${label}</b></a>`, due * 100 + fresh];
+  }).filter(r => r[1]).sort((a, b) => b[1] - a[1]);
+  const top = rows.length ? /href="\.\/([^.]+)\.html/.exec(rows[0][0])[1] : DATA.modules[0].slug;
+  document.getElementById('rvList').innerHTML = rows.map(r => r[0]).join('') +
+    `<a class="rv-go" href="./${top}.html#review">Start review →</a>`;
+  if (!totalDue) document.querySelector('#reviewPanel .p-lead').innerHTML =
+    `<b>${totalFresh}</b> new card${totalFresh === 1 ? '' : 's'} unlocked. They enter the schedule the first time you review them.`;
+}
+
+/* ── pacing ── */
+const totalWords = DATA.modules.reduce((a, m) => a + m.wordCount, 0);
+const firstH = totalWords / 130 / 60;             // hours of first-pass reading at 130 wpm
+const fullH = firstH * 2.2;                       // + second pass + interview prep
+const fmtH = h => h >= 1 ? h.toFixed(0) + ' h' : Math.round(h * 60) + ' min';
+document.getElementById('pcTotal').textContent = fmtH(firstH);
+document.getElementById('pcFull').textContent = fmtH(fullH);
+const hpw = document.getElementById('hpw');
+hpw.value = PLAN.hpw || 6;
+const doneFrac = totSec ? dnSec / totSec : 0;
+function projectPace(){
+  const h = +hpw.value;
+  document.getElementById('hpwV').textContent = h;
+  const remFirst = firstH * (1 - doneFrac), remFull = fullH * (1 - doneFrac);
+  const wkFirst = remFirst / h, wkFull = remFull / h;
+  const date = wk => new Date(now + wk * 7 * DAY).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  document.getElementById('pcProj').innerHTML =
+    `At this pace: first pass done <b>${date(wkFirst)}</b> (~${Math.ceil(wkFirst)} weeks), full mastery <b>${date(wkFull)}</b>.`;
+  // actual pace from the last 28 days of the log
+  const cut = now - 28 * DAY;
+  let mins = 0, days = new Set();
+  for (const [d, m] of Object.entries(LOG)) { const t = new Date(d).getTime(); if (t >= cut) { mins += m; days.add(d); } }
+  const el = document.getElementById('pcActual');
+  if (days.size >= 2) {
+    const span = Math.max(1, (now - Math.min(...[...days].map(d => new Date(d).getTime()))) / DAY);
+    const actualHpw = mins / 60 / span * 7;
+    const cls = actualHpw >= h * 0.85 ? 'ontrack' : 'behind';
+    el.className = 'p-actual ' + cls;
+    el.innerHTML = `Actual over the last ${Math.round(span)} days: <b>${actualHpw.toFixed(1)} h/week</b> — ${cls === 'ontrack' ? 'on track.' : `below your ${h} h target.`}`;
+  } else { el.className = 'p-actual'; el.textContent = 'Your actual pace will show here once you have a few days of progress.'; }
+}
+hpw.addEventListener('input', () => { projectPace(); PLAN.hpw = +hpw.value; try { localStorage.setItem('mlss:plan', JSON.stringify(PLAN)); } catch (e) {} });
+projectPace();
+
+const hereMod = DATA.modules[hereIx];
+const nowGo = document.getElementById('nowGo');
+nowGo.href = `./${hereMod.slug}.html${LAST && LAST.mod === hereMod.slug && LAST.sec ? '#' + LAST.sec : ''}`;
+if (dnSec > 0) {
+  document.getElementById('nowH').textContent = 'Continue';
+  document.getElementById('nowText').innerHTML = `You're in <b>${esc(hereMod.name)}</b> — ${modState[hereIx].pct}% of its sections done.`;
+  nowGo.textContent = 'Resume →';
+}
+</script>
