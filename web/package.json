@@ -1,15 +1,16 @@
 {
   "name": "web",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "description": "Build the Amazon ML Summer School study notes into a self-contained static site",
+  "private": true,
   "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:home": "node build.mjs --home",
+    "analyze": "node _analyze.mjs"
+  },
+  "author": "Aryan Bhendarkar",
+  "license": "MIT",
   "dependencies": {
     "js-yaml": "^5.4.1",
     "markdown-it": "^15.0.1",
