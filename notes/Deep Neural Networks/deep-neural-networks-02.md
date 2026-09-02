@@ -313,34 +313,22 @@ sense, the first architecture family that could only exist *because* Part A's pr
 
 ### The whole lecture in one diagram
 
-```
-                 ┌──────────────── PART A: make deep training work ────────────────┐
-
-  CH.1 STARTING POINT          CH.2 GRADIENT SIGNAL        CH.3 STABILIZE        CH.4 GENERALIZE
-  ───────────────────          ────────────────────        ─────────────        ───────────────
-  Var(a[l]) = n·Var(W)·Var(a)  dL/dW[1] = product of       Landscape is         Flat minima good,
-        │                       L-1 terms                  ill-conditioned      sharp minima bad
-        │                            │                          │                     │
-   ┌────┴────┐                  ┌────┴─────┐              ┌─────┴─────┐        ┌──────┼───────┐
- Xavier    He (ReLU)         vanish     explode         BatchNorm  LayerNorm   L1/L2 Dropout Early
- 2/(nin+nout) 2/nin          <1 prod    >1 prod          (batch)   (features)              Stopping
-                                  │          │
-                            ┌─────┴──┐   ┌───┴────┐
-                          ReLU   skip   clipping
-                          norm   conns
-
-                 └──────────── all four are prerequisites for ────────────┐
-                                                                          ▼
-                 ┌──────────── PART B: make the network SEE ──────────────────────┐
-
-  WHY CNNs              BUILDING BLOCKS                    ARCHITECTURES        APPLICATIONS
-  ────────              ───────────────                    ─────────────        ────────────
-  param explosion  →   convolution → padding → stride  →  LeNet→AlexNet→VGG  →  transfer learning
-  no equivariance       → pooling → receptive field        →GoogLeNet→ResNet    object detection
-  no locality           → the conv block                   (1x1, params)        style transfer
-                              │                                   ▲
-                              └── contains BatchNorm (Ch.3) ──────┘
-                                  and skip conns (Ch.2)
+```mermaid
+flowchart TD
+    subgraph A["PART A — make deep training work"]
+      direction TB
+      A1["<b>Ch.1 Starting point</b><br/><small>Var(aˡ) = n·Var(W)·Var(a)</small>"] --> A2["<b>Ch.2 Gradient signal</b><br/><small>∂L/∂W¹ = product of L−1 terms → vanish (&lt;1) / explode (&gt;1)</small>"]
+      A2 --> A3["<b>Ch.3 Stabilize</b><br/><small>init (Xavier / He) · ReLU · skip connections · clipping · BatchNorm / LayerNorm</small>"]
+      A3 --> A4["<b>Ch.4 Generalize</b><br/><small>flat minima good, sharp bad · L1/L2 · dropout · early stopping</small>"]
+    end
+    A --> B["PART B — make the network SEE"]
+    B --> B1["<b>Why CNNs</b><br/><small>param explosion · no equivariance · no locality</small>"]
+    B1 --> B2["<b>Building blocks</b><br/><small>convolution → padding → stride → pooling → receptive field → the conv block</small>"]
+    B2 --> B3["<b>Architectures</b><br/><small>LeNet → AlexNet → VGG → GoogLeNet → ResNet</small>"]
+    B3 --> B4["<b>Applications</b><br/><small>transfer learning · object detection · style transfer</small>"]
+    B2 -.->|"the conv block reuses BatchNorm (Ch.3) and skip connections (Ch.2)"| B3
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class B k
 ```
 
 ---
@@ -1302,25 +1290,31 @@ approximately the training loss surface, nudged slightly.
 
 Now picture that nudge:
 
+```svg
+<svg viewBox="0 0 620 220" role="img" aria-label="Sharp versus flat minimum under a small shift" font-family="system-ui,sans-serif">
+  <style>.ttl{fill:#EDE6D7;font-size:12.5px;font-weight:700}.tr{fill:none;stroke:#8CDCA6;stroke-width:2}
+    .te{fill:none;stroke:#E89170;stroke-width:1.8;stroke-dasharray:5 4}.ax{stroke:#4C4739;stroke-width:1.2}
+    .pt{fill:#EDE6D7}.lab{fill:#B4AA95;font-size:11px}</style>
+  <g transform="translate(20,16)">
+    <text class="ttl" x="130" y="10" text-anchor="middle">Sharp minimum</text>
+    <line class="ax" x1="10" y1="150" x2="250" y2="150"/>
+    <path class="tr" d="M40,40 L125,140 L210,40"/>
+    <path class="te" d="M75,40 L160,140 L245,40"/>
+    <circle class="pt" cx="125" cy="140" r="3.5"/><circle class="pt" cx="119" cy="66" r="3.5"/>
+    <text class="lab" x="130" y="180" text-anchor="middle">small shift → large loss increase</text>
+  </g>
+  <g transform="translate(350,16)">
+    <text class="ttl" x="130" y="10" text-anchor="middle">Flat minimum</text>
+    <line class="ax" x1="10" y1="150" x2="250" y2="150"/>
+    <path class="tr" d="M30,60 C90,140 160,140 230,60"/>
+    <path class="te" d="M55,60 C115,140 185,140 255,60"/>
+    <circle class="pt" cx="130" cy="132" r="3.5"/><circle class="pt" cx="130" cy="122" r="3.5"/>
+    <text class="lab" x="130" y="180" text-anchor="middle">small shift → tiny loss increase</text>
+  </g>
+</svg>
 ```
-  SHARP MINIMUM                          FLAT MINIMUM
-  ─────────────                          ────────────
 
-  loss │      train                      loss │  train
-       │   ╲    ╱                             │  ──╲______╱──
-       │    ╲  ╱                              │      ╲__╱
-       │     ╲╱  ← you are here               │       ╲╱   ← you are here
-       │                                      │
-       │      test (shifted a little)         │  test (shifted a little)
-       │    ╲    ╱                            │  ──╲______╱──
-       │     ╲  ╱                             │      ╲__╱
-       │      ╲╱                              │       ╲╱
-       │       ↑ your point is now            │        ↑ your point is still
-       │         way up the wall              │          near the bottom
-       └──────────────── weights              └──────────────── weights
-
-  Small shift → LARGE loss increase       Small shift → tiny loss increase
-```
+Solid = train loss, dashed = test loss (the same landscape, shifted a little). In a sharp minimum your point is now up the wall; in a flat one it is still near the bottom.
 
 In a **sharp** minimum, a small horizontal shift of the surface moves you a long way *up*, because the
 walls are steep. In a **flat** minimum, the same shift barely changes your altitude. **The
@@ -1639,19 +1633,16 @@ The diagram shows the canonical picture: training loss descending monotonically,
 descending then turning up, with a green **STOP HERE** marker at the minimum of the validation curve
 and an "Overfitting zone" shaded to its right.
 
+```mermaid
+xychart-beta
+    title "Early stopping — validation loss turns up while training loss keeps falling"
+    x-axis "epochs" 0 --> 100
+    y-axis "loss" 0 --> 1
+    line [0.9, 0.55, 0.38, 0.28, 0.22, 0.18, 0.15, 0.13, 0.11, 0.10]
+    line [0.85, 0.52, 0.37, 0.30, 0.27, 0.26, 0.28, 0.33, 0.40, 0.48]
 ```
-   Loss │
-        │╲
-        │ ╲                                    ╱ Val  (turns up — memorising noise)
-        │  ╲                            ___╱
-        │   ╲___                  _____╱
-        │       ╲____●___________╱
-        │         ↑  STOP HERE
-        │          ╲____
-        │               ╲________  Train  (keeps falling — always will)
-        └──────────────────────────────────────── Epochs
-                     │◄──── overfitting zone ────►
-```
+
+**Green = training loss** (always falls). **Orange = validation loss** — it bottoms out, then turns up as the model starts fitting noise. Stop at the orange minimum.
 
 **Why the two curves diverge.** Training loss can always be reduced further, because the model can
 always memorise another training example. Validation loss stops improving once the model has extracted
@@ -2385,11 +2376,9 @@ fallback: Worked examples A and B above: three 3x3 layers give RF 7 with 27 weig
 
 > *"The standard building block repeated throughout modern CNNs."* [slide 57, 34:33]
 
-```
-┌───────────┐   ┌───────────┐   ┌───────────┐   ┌──────┐   ┌───────────┐   ┌──────────────┐
-│   Input   │──▶│  Conv2D   │──▶│ BatchNorm │──▶│ ReLU │──▶│  MaxPool  │──▶│    Output    │
-│  H × W × C│   │ 3×3, same │   │           │   │      │   │    2×2    │   │ H/2 × W/2 × F│
-└───────────┘   └───────────┘   └───────────┘   └──────┘   └───────────┘   └──────────────┘
+```mermaid
+flowchart LR
+    I["Input<br/><small>H × W × C</small>"] --> C["Conv2D<br/><small>3×3, same</small>"] --> B["BatchNorm"] --> R["ReLU"] --> P["MaxPool<br/><small>2×2</small>"] --> O["Output<br/><small>H/2 × W/2 × F</small>"]
 ```
 
 ```python
@@ -2499,26 +2488,20 @@ capture, is captioned: *"ResNet Basic Block (ResNet-18/34). ResNet-50+ uses bott
 > quoted above; the diagram's internal labels are not. Here is the standard structure it describes —
 > flagged as reconstruction:
 
-```
-🩹  BASIC BLOCK (ResNet-18/34)          BOTTLENECK BLOCK (ResNet-50/101/152)
-
-    x ─────────────┐                     x ─────────────────┐
-    │              │                     │                  │
-  conv 3x3, C      │  skip             conv 1x1, C/4        │  skip
-  BN, ReLU         │                   BN, ReLU             │
-  conv 3x3, C      │                   conv 3x3, C/4        │
-  BN               │                   BN, ReLU             │
-    │              │                   conv 1x1, C          │
-    ▼              │                   BN                   │
-   (+)◄────────────┘                     │                  │
-    │                                    ▼                  │
-   ReLU                                 (+)◄────────────────┘
-    │                                    │
-    ▼                                   ReLU
-                                         │
-    2 convs, 2·(9C²) = 18C²              ▼
-                                  1x1 down + 3x3 + 1x1 up
-                                  ≈ C²/4·(1 + 9/4·... ) — far cheaper at large C
+```mermaid
+flowchart TB
+    subgraph BASIC["Basic block — ResNet-18/34"]
+      direction TB
+      b0["x"] --> b1["conv 3×3, C · BN · ReLU"] --> b2["conv 3×3, C · BN"] --> bp(("+")) --> br["ReLU"]
+      b0 -.->|skip| bp
+    end
+    subgraph BN["Bottleneck block — ResNet-50/101/152"]
+      direction TB
+      n0["x"] --> n1["conv 1×1, C/4 · BN · ReLU"] --> n2["conv 3×3, C/4 · BN · ReLU"] --> n3["conv 1×1, C · BN"] --> np(("+")) --> nr["ReLU"]
+      n0 -.->|skip| np
+    end
+    BASIC -.->|"2·(9C²) = 18C² per block"| BN
+    BN -.->|"1×1 down + 3×3 + 1×1 up — far cheaper at large C"| DONE([" "])
 ```
 
 The bottleneck's logic is §24's: squeeze the channels down with a 1×1, do the expensive 3×3 work in the
@@ -3133,90 +3116,26 @@ The deck's closing slide [slide 78, 48:04]:
 
 ## Putting it together
 
-```
-                        ┌─────────────────────────────────────────┐
-                        │  THE PRODUCT RULE IS THE ROOT CAUSE     │
-                        │  a[l] = product of gains                │
-                        │  dL/dW[1] = product of L-1 derivatives  │
-                        │  Anything != 1, raised to depth, breaks │
-                        └────────────────┬────────────────────────┘
-                                         │
-              ┌──────────────────────────┼──────────────────────────┐
-              ▼                          ▼                          ▼
-    ┌───────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
-    │ §1 FORWARD SIGNAL │    │ §3 BACKWARD SIGNAL │    │ §5 CONDITIONING     │
-    │ Var(a) = n·Var(W) │    │ vanish / explode   │    │ steep vs flat dirs  │
-    │        ·Var(a)    │    │                    │    │                     │
-    └─────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
-              │                        │                          │
-              ▼                        ▼                          ▼
-    ┌───────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
-    │ §2 Xavier 2/(in+  │    │ §4 four fixes:     │    │ §6 BatchNorm        │
-    │      out) tanh    │    │  clip   → explode  │    │ §7 LayerNorm        │
-    │    He 2/in  ReLU  │    │  ReLU   → vanish   │    │ §8 why it works     │
-    │  (factor 2 from   │    │  norm   → both ────┼───▶│ (landscape, not ICS)│
-    │   E[ReLU²]=½E[z²])│    │  skip   → vanish ──┼──┐ └──────────┬──────────┘
-    └───────────────────┘    └────────────────────┘  │            │
-                                                     │            ▼
-                                                     │  ┌─────────────────────┐
-                                                     │  │ §9  flat vs sharp   │
-                                                     │  │ §10 L1 vs L2        │
-                                                     │  │ §11 dropout 1/(1-p) │
-                                                     │  │ §12 early stopping  │
-                                                     │  │ §13 the checklist   │
-                                                     │  └──────────┬──────────┘
-                                                     │             │
-    ══════════════════════════════════════════════════╪═════════════╪═══════════
-                                                     │             │
-    §14 MLPs fail on images:                         │             │
-    params explode · no equivariance · no locality   │             │
-              │                                      │             │
-              ▼                                      │             │
-    ┌───────────────────┐                            │             │
-    │ §15 CONVOLUTION   │  locality + weight sharing │             │
-    │ kernel slides,    │                            │             │
-    │ multiplies, sums  │                            │             │
-    └─────────┬─────────┘                            │             │
-              │                                      │             │
-      ┌───────┼───────┬──────────┐                   │             │
-      ▼       ▼       ▼          ▼                   │             │
-   §16 out  §17 pad §18 stride §19 pool              │             │
-   O = ⌊(W+2P-K)/S⌋+1     │        │                 │             │
-                          └────┬───┘                 │             │
-                               ▼                     │             │
-                    ┌─────────────────────┐          │             │
-                    │ §20 RECEPTIVE FIELD │          │             │
-                    │ RF += (K-1)·∏S      │          │             │
-                    │ → 3 stacked 3x3s    │          │             │
-                    │   beat one 7x7      │          │             │
-                    └──────────┬──────────┘          │             │
-                               ▼                     │             │
-                    ┌─────────────────────┐          │             │
-                    │ §21 THE CONV BLOCK  │◄─────────┴─────────────┘
-                    │ Conv→BN→ReLU→Pool   │   uses Part A's BatchNorm
-                    └──────────┬──────────┘
-                               ▼
-                    ┌─────────────────────┐
-                    │ §22 ARCHITECTURES   │◄──── ResNet = Part A's skip connection
-                    │ LeNet→AlexNet→VGG   │      AlexNet = Part A's ReLU + Dropout
-                    │ →GoogLeNet→ResNet   │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    ▼                     ▼
-         ┌─────────────────────┐  ┌─────────────────────┐
-         │ §23 PARAM COUNTING  │  │ §24 1x1 CONVS       │
-         │ K(F·F·Cin+1)        │─▶│ bottleneck: 8.4x    │
-         │ FC is 1,400x worse  │  │ cheaper sandwich    │
-         └─────────────────────┘  └──────────┬──────────┘
-                                             ▼
-                          ┌──────────────────────────────────┐
-                          │ INTERMEDIATE ACTIVATIONS ARE A   │
-                          │ GENERAL VISUAL REPRESENTATION    │
-                          └───┬──────────┬───────────────┬───┘
-                              ▼          ▼               ▼
-                        §25 transfer  §26 detection  §27 style
-                          learning     IoU/YOLO/NMS   Gram matrices
+```mermaid
+flowchart TD
+    ROOT["<b>The product rule is the root cause</b><br/><small>aˡ = product of gains · ∂L/∂W¹ = product of L−1 derivatives<br/>anything ≠ 1, raised to depth, breaks</small>"]
+    ROOT --> FS["<b>§1 Forward signal</b><br/><small>Var(a) = n·Var(W)·Var(a)</small>"]
+    ROOT --> BS["<b>§3 Backward signal</b><br/><small>vanish / explode</small>"]
+    ROOT --> CO["<b>§5 Conditioning</b><br/><small>steep vs flat directions</small>"]
+    FS --> F2["<b>§2 Init</b> · Xavier 2/(nin+nout) tanh · He 2/nin ReLU"]
+    BS --> F4["<b>§4 Four fixes</b> · clip → explode · ReLU → vanish · norm → both · skip → vanish"]
+    CO --> F6["<b>§6–8 BatchNorm / LayerNorm</b><br/><small>smooths the landscape (not internal covariate shift)</small>"]
+    F4 --> F6
+    F2 & F6 --> GEN["<b>§9–13 Generalisation</b><br/><small>flat vs sharp · L1 vs L2 · dropout 1/(1−p) · early stopping · the checklist</small>"]
+    GEN ==> CNN["<b>§14 MLPs fail on images</b><br/><small>params explode · no equivariance · no locality</small>"]
+    CNN --> CV["<b>§15 Convolution</b> · locality + weight sharing"]
+    CV --> BLK["<b>§16–21 The conv block</b> · Conv → BN → ReLU → Pool<br/><small>§20 receptive field: 3 stacked 3×3s beat one 7×7</small>"]
+    BLK --> ARCH["<b>§22 Architectures</b> · LeNet → AlexNet → VGG → GoogLeNet → ResNet<br/><small>ResNet = Part A's skip · AlexNet = Part A's ReLU + Dropout</small>"]
+    ARCH --> PC["<b>§23–24</b> param counting · 1×1 bottleneck (8.4× cheaper)"]
+    PC --> REP["<b>Intermediate activations are a general visual representation</b>"]
+    REP --> APP["§25 transfer learning · §26 detection (IoU / YOLO / NMS) · §27 style transfer (Gram matrices)"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class ROOT,F6,CV,REP k
 ```
 
 ### Walking the diagram

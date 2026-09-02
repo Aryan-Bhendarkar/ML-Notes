@@ -33,7 +33,7 @@ const THEME = {
     nodeTextColor: '#EDE6D7',
     // sequence / state / class inherit from the above
   },
-  flowchart: { curve: 'linear', htmlLabels: true, padding: 10, nodeSpacing: 34, rankSpacing: 40, useMaxWidth: true },
+  flowchart: { curve: 'linear', htmlLabels: true, padding: 10, nodeSpacing: 30, rankSpacing: 30, wrappingWidth: 260, useMaxWidth: true },
   sequence: { useMaxWidth: true, mirrorActors: false },
   gantt: { useMaxWidth: true },
   xyChart: {
@@ -69,13 +69,16 @@ function collect() {
   return seen;
 }
 
-// trim the fixed width/height mermaid bakes in so the figure scales to its column
+// Pin the SVG to its natural pixel width (from the viewBox) so a narrow diagram is
+// never up-scaled by a wide column; max-width:100% still lets it shrink to fit.
 function responsive(svg) {
+  const vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg);
+  const w = vb ? Math.ceil(+vb[1]) : 720;
   return svg
     .replace(/<svg([^>]*?)\sstyle="[^"]*"/, '<svg$1')
-    .replace(/<svg([^>]*?)\swidth="[\d.]+(px)?"/, '<svg$1')
-    .replace(/<svg([^>]*?)\sheight="[\d.]+(px)?"/, '<svg$1')
-    .replace('<svg ', '<svg preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto" ');
+    .replace(/<svg([^>]*?)\swidth="[^"]*"/, '<svg$1')
+    .replace(/<svg([^>]*?)\sheight="[^"]*"/, '<svg$1')
+    .replace('<svg ', `<svg preserveAspectRatio="xMidYMid meet" width="${w}" style="max-width:100%;height:auto" `);
 }
 
 async function main() {

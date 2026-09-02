@@ -341,13 +341,14 @@ lecture is about a tool, and the tool has a domain.
 
 Slide 3 `[f7]` (3:34) explains *why* learned features win:
 
+```mermaid
+flowchart LR
+    P["raw pixels<br/><small>a grid of numbers</small>"] --> L1["Layer 1<br/><small>edges</small>"] --> L2["Layer 2<br/><small>textures</small>"] --> L3["Layer 3<br/><small>object parts</small>"] --> L4["Layer 4<br/><small>whole object</small>"] --> O(["“cat” · 98%"])
+    classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class O term
 ```
- Raw pixels  →  Layer 1  →  Layer 2  →  Layer 3  →   Layer 4   →   Output
- (a grid of      edges      textures   object parts  whole object   "cat" 98%
-  numbers)
-             └──────── each layer combines the previous layer's features
-                       into something more abstract ────────┘
-```
+
+Each layer combines the previous layer's features into something more abstract.
 
 > A deep network isn't one big classifier — it's a **pipeline of feature detectors**, each built
 > from the one before. Nobody programs these in; **they emerge from data.**
@@ -363,24 +364,26 @@ Slide 3 `[f7]` (3:34) explains *why* learned features win:
 
 ### The eight chapters as one argument
 
-```
-  Ch.1 ARCHITECTURE      What is the object?     stacked layers of Wx+b
-        ↓                                        ...but stacking alone does nothing, so →
-  Ch.2 ACTIVATIONS       What makes depth real?  a nonlinearity between every layer
-        ↓                                        ...now it can compute. But what does it output? →
-  Ch.3 FORWARD PROP      How do we get an answer? push x through, layer by layer
-        ↓                                        ...how do we know if the answer is good? →
-  Ch.4 LOSS              How wrong are we?       one scalar: MSE or cross-entropy
-        ↓                                        ...how do we use that number? →
-  Ch.5 BACKPROP          How do we fix it?       one backward sweep gives every gradient
-        ↓                                        ...but plain gradient steps are fragile →
-  Ch.6 OPTIMIZERS        How do we step well?    momentum + adaptive rates = AdamW
-        ↓                                        ...now it trains. But does it generalise? →
-  Ch.7 REGULARIZATION    How do we generalise?   dropout, decay, early stop, batch norm
-        ↓
-  TRAINING LOOP          all seven, 20 lines of PyTorch
-        ↓
-  HANDS-ON               the three bugs that break it in practice
+```mermaid
+flowchart TD
+    C1["<b>Ch.1 Architecture</b><br/><small>stacked layers of Wx + b</small>"]
+    C2["<b>Ch.2 Activations</b><br/><small>a nonlinearity between every layer</small>"]
+    C3["<b>Ch.3 Forward prop</b><br/><small>push x through, layer by layer</small>"]
+    C4["<b>Ch.4 Loss</b><br/><small>one scalar: MSE or cross-entropy</small>"]
+    C5["<b>Ch.5 Backprop</b><br/><small>one backward sweep → every gradient</small>"]
+    C6["<b>Ch.6 Optimizers</b><br/><small>momentum + adaptive rates = AdamW</small>"]
+    C7["<b>Ch.7 Regularization</b><br/><small>dropout, decay, early stop, batch norm</small>"]
+    T(["<b>Training loop</b> — all seven, 20 lines of PyTorch"])
+    H(["<b>Hands-on</b> — the three bugs that break it"])
+    C1 -->|"stacking alone does nothing"| C2
+    C2 -->|"now it computes — but what does it output?"| C3
+    C3 -->|"how do we know the answer is good?"| C4
+    C4 -->|"how do we use that number?"| C5
+    C5 -->|"plain gradient steps are fragile"| C6
+    C6 -->|"it trains — but does it generalise?"| C7
+    C7 --> T --> H
+    classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class T,H term
 ```
 
 Each chapter exists because the previous one left something broken. That is a genuinely good deck
@@ -476,16 +479,23 @@ which **contradicts (1)**. No such $w_1, w_2, b$ exists. ∎
 Geometrically: the two 1s sit on one diagonal of the unit square, the two 0s on the other. Any
 straight line you draw puts at least one point on the wrong side.
 
+```svg
+<svg viewBox="0 0 300 250" role="img" aria-label="XOR is not linearly separable" font-family="system-ui,sans-serif">
+  <style>.ax{stroke:#4C4739;stroke-width:1.4}.t{fill:#7C7361;font-size:12px}
+    .c1{fill:#8CDCA6}.c0{fill:none;stroke:#B4AA95;stroke-width:1.8}
+    .try{stroke:#E89170;stroke-width:1.6;stroke-dasharray:5 4}.lab{fill:#B4AA95;font-size:11.5px}</style>
+  <line class="ax" x1="40" y1="200" x2="260" y2="200"/><line class="ax" x1="40" y1="30" x2="40" y2="200"/>
+  <text class="t" x="264" y="204">x₁</text><text class="t" x="34" y="26" text-anchor="end">x₂</text>
+  <text class="t" x="40" y="218" text-anchor="middle">0</text><text class="t" x="220" y="218" text-anchor="middle">1</text>
+  <text class="t" x="30" y="204" text-anchor="end">0</text><text class="t" x="30" y="54" text-anchor="end">1</text>
+  <circle class="c1" cx="40" cy="50" r="7"/><circle class="c1" cx="220" cy="200" r="7"/>
+  <circle class="c0" cx="220" cy="50" r="7"/><circle class="c0" cx="40" cy="200" r="7"/>
+  <line class="try" x1="30" y1="230" x2="250" y2="20"/>
+  <text class="lab" x="150" y="240" text-anchor="middle">any straight line gets one point wrong</text>
+</svg>
 ```
-   x₂
-   1 │  ●(0,1)          ○(1,1)          ● = class 1
-     │                                  ○ = class 0
-     │      any straight line you
-     │      draw gets one wrong
-   0 │  ○(0,0)          ●(1,0)
-     └──────────────────────── x₁
-        0                1
-```
+
+Filled = class 1, open = class 0. XOR: the two classes sit on opposite diagonals, so no single line separates them.
 
 > 💡 **Why this piece of 1969 history is worth knowing.** Minsky & Papert's result was *correct*.
 > The field's mistake was in the inference drawn from it: they proved a single-layer perceptron
@@ -512,17 +522,30 @@ Slide 6 `[f13]` (6:03).
 > Each hidden neuron learns its own boundary, and stacking them lets the network **bend and fold**
 > the input space until the classes become separable. This is the **Multi-Layer Perceptron**.
 
-```
-        A 3 → 4 → 4 → 2 fully-connected network
-
-   Input        Hidden 1      Hidden 2      Output
-    x₁ ─┐        ○──┐          ○──┐
-        ├────────○──┼──────────○──┼───────── y₁
-    x₂ ─┤        ○──┤          ○──┤
-        ├────────○──┘          ○──┘───────── y₂
-    x₃ ─┘
-
-   every arrow is a learned weight · each layer = matrix multiply + bias + activation
+```svg
+<svg viewBox="0 0 460 220" role="img" aria-label="A 3-4-4-2 fully connected network" font-family="system-ui,sans-serif">
+  <style>.n{fill:#2C2820;stroke:#8CDCA6;stroke-width:1.5}.e{stroke:#4C4739;stroke-width:1}
+    .cap{fill:#B4AA95;font-size:11.5px}.hd{fill:#7C7361;font-size:11px;text-transform:uppercase;letter-spacing:.06em}</style>
+  <g class="hd"><text x="40" y="16" text-anchor="middle">input</text><text x="180" y="16" text-anchor="middle">hidden 1</text><text x="320" y="16" text-anchor="middle">hidden 2</text><text x="440" y="16" text-anchor="middle">output</text></g>
+  <g class="e">
+    <line x1="40" y1="70" x2="180" y2="45"/><line x1="40" y1="70" x2="180" y2="90"/><line x1="40" y1="70" x2="180" y2="135"/><line x1="40" y1="70" x2="180" y2="180"/>
+    <line x1="40" y1="115" x2="180" y2="45"/><line x1="40" y1="115" x2="180" y2="90"/><line x1="40" y1="115" x2="180" y2="135"/><line x1="40" y1="115" x2="180" y2="180"/>
+    <line x1="40" y1="160" x2="180" y2="45"/><line x1="40" y1="160" x2="180" y2="90"/><line x1="40" y1="160" x2="180" y2="135"/><line x1="40" y1="160" x2="180" y2="180"/>
+    <line x1="180" y1="45" x2="320" y2="45"/><line x1="180" y1="45" x2="320" y2="90"/><line x1="180" y1="45" x2="320" y2="135"/><line x1="180" y1="45" x2="320" y2="180"/>
+    <line x1="180" y1="90" x2="320" y2="45"/><line x1="180" y1="90" x2="320" y2="90"/><line x1="180" y1="90" x2="320" y2="135"/><line x1="180" y1="90" x2="320" y2="180"/>
+    <line x1="180" y1="135" x2="320" y2="45"/><line x1="180" y1="135" x2="320" y2="90"/><line x1="180" y1="135" x2="320" y2="135"/><line x1="180" y1="135" x2="320" y2="180"/>
+    <line x1="180" y1="180" x2="320" y2="45"/><line x1="180" y1="180" x2="320" y2="90"/><line x1="180" y1="180" x2="320" y2="135"/><line x1="180" y1="180" x2="320" y2="180"/>
+    <line x1="320" y1="45" x2="440" y2="90"/><line x1="320" y1="45" x2="440" y2="135"/><line x1="320" y1="90" x2="440" y2="90"/><line x1="320" y1="90" x2="440" y2="135"/>
+    <line x1="320" y1="135" x2="440" y2="90"/><line x1="320" y1="135" x2="440" y2="135"/><line x1="320" y1="180" x2="440" y2="90"/><line x1="320" y1="180" x2="440" y2="135"/>
+  </g>
+  <g class="n">
+    <circle cx="40" cy="70" r="9"/><circle cx="40" cy="115" r="9"/><circle cx="40" cy="160" r="9"/>
+    <circle cx="180" cy="45" r="9"/><circle cx="180" cy="90" r="9"/><circle cx="180" cy="135" r="9"/><circle cx="180" cy="180" r="9"/>
+    <circle cx="320" cy="45" r="9"/><circle cx="320" cy="90" r="9"/><circle cx="320" cy="135" r="9"/><circle cx="320" cy="180" r="9"/>
+    <circle cx="440" cy="90" r="9"/><circle cx="440" cy="135" r="9"/>
+  </g>
+  <text class="cap" x="230" y="212" text-anchor="middle">every edge is a learned weight · each layer = matrix multiply + bias + activation</text>
+</svg>
 ```
 
 **"Bend and fold" is the right mental image and worth making concrete.** A single neuron draws one
@@ -1091,9 +1114,11 @@ activations — how do we get an answer out?
 > Each layer's output becomes the next layer's input. Every step is the same recipe — a **matrix
 > multiply, then a nonlinear activation** — so the whole forward pass is just that block repeated.
 
-```
- Input x → │ z = Wx + b │ → │ a = ReLU(z) │ → │ z = Wa + b │ → │ softmax(z) │ → ▌Loss L▐
-             linear                              linear
+```mermaid
+flowchart LR
+    X["input x"] --> Z1["z = W¹x + b¹<br/><small>linear</small>"] --> A1["a = ReLU(z)"] --> Z2["z = W²a + b²<br/><small>linear</small>"] --> SM["softmax(z)"] --> L(["Loss L"])
+    classDef term fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class L term
 ```
 
 > Read the pipeline left to right: the input is linearly transformed, passed through an activation,
@@ -1226,12 +1251,12 @@ comprehensible instead of magic.
 > it just produces the prediction — but because each node also remembers its inputs, this same graph
 > is what makes learning possible later.
 
-```
-  ┌───┐   ┌──────────┐   ┌──────┐   ┌──────────┐   ┌───┐   ┌──────────┐
-  │ x │ → │ W¹x + b¹ │ → │ ReLU │ → │ W²a + b² │ → │ σ │ → │ Loss → L │
-  └───┘   └──────────┘   └──────┘   └──────────┘   └───┘   └──────────┘
-  ◄╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
-        the same graph can later be walked in reverse (next chapter)
+```mermaid
+flowchart LR
+    X["x"] --> A["W¹x + b¹"] --> B["ReLU"] --> C["W²a + b²"] --> D["σ"] --> E(["Loss → L"])
+    E -.->|"the same graph, walked in reverse (next chapter)"| X
+    classDef term fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class E term
 ```
 
 ```python
@@ -1308,10 +1333,13 @@ Slide 19 `[f54]` (20:34). Chapter 4.
 > answer $y$ and returns one scalar: **0 = perfect, larger = worse**. Training is then a clear goal —
 > **find the weights that make the average loss over the data as small as possible.**
 
-```
-   model prediction ŷ ─┐
-                       ├──→ ▌ loss L(ŷ, y) ▐ ──→  a scalar   (0 = perfect)
-   true label y ───────┘
+```mermaid
+flowchart LR
+    P["model prediction ŷ"] --> L["L(ŷ, y)"]
+    Y["true label y"] --> L
+    L --> S(["a scalar — 0 = perfect"])
+    classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class S term
 ```
 
 > 💡 **"A single number" is a requirement, not a stylistic choice.** Gradient descent needs
@@ -1410,17 +1438,15 @@ reproduce.
 > CE punishes confident wrong answers **harshly**: as the probability on the true class falls toward
 > 0, the loss shoots to infinity.
 
+```mermaid
+xychart-beta
+    title "Cross-entropy loss vs the predicted probability for the true class"
+    x-axis "predicted probability for the true class" 0 --> 1
+    y-axis "loss" 0 --> 5
+    line [4.6, 2.3, 1.2, 0.7, 0.36, 0.11, 0.0]
 ```
- loss │ŷ→0: L→∞
-      │╲
-      │ ╲
-      │  ╲
-      │    ╲
-      │      ╲___
-      │          ╲______ ŷ→1: L→0
-      └────────────────────
-      predicted prob for the true class
-```
+
+As the model's confidence in the correct answer falls toward 0, the penalty rises without bound — a wrong-and-certain prediction is punished arbitrarily hard.
 
 > **The decisive difference: the gradient.** Take a badly wrong prediction ($\hat y \approx 0$ when
 > the true $y = 1$) and compare the gradient each loss sends back:
@@ -1555,17 +1581,23 @@ $$W \leftarrow W - \eta\,\frac{\partial L}{\partial W}$$
 
 > Repeat for every weight, every batch, and the loss rolls downhill toward a minimum.
 
-```
-   loss L
-     │╲                                    ╱
-     │ ●  start (high L)                  ╱
-     │  ↘                                ╱
-     │   ●↘                             ╱     each step = one
-     │     ●↘                          ╱      −η·gradient update
-     │       ●↘_                      ╱
-     │          ●___________________╱
-     │              ● minimum (low L)
-     └──────────────────────────────────── weight
+```svg
+<svg viewBox="0 0 420 220" role="img" aria-label="Gradient descent rolling down a loss curve" font-family="system-ui,sans-serif">
+  <style>.ax{stroke:#4C4739;stroke-width:1.4}.t{fill:#7C7361;font-size:11.5px}
+    .curve{fill:none;stroke:#B4AA95;stroke-width:2}.pt{fill:#8CDCA6}.arr{stroke:#8CDCA6;stroke-width:1.5}
+    .lab{fill:#B4AA95;font-size:11px}</style>
+  <line class="ax" x1="34" y1="190" x2="400" y2="190"/><line class="ax" x1="34" y1="20" x2="34" y2="190"/>
+  <text class="t" x="380" y="205">weight</text><text class="t" x="28" y="24" text-anchor="end">loss L</text>
+  <path class="curve" d="M50,40 C110,180 150,190 210,175 C270,160 320,60 390,30"/>
+  <g class="pt">
+    <circle cx="66" cy="70" r="4"/><circle cx="92" cy="120" r="4"/><circle cx="120" cy="158" r="4"/><circle cx="152" cy="177" r="4"/><circle cx="188" cy="180" r="4"/><circle cx="214" cy="176" r="4"/>
+  </g>
+  <path class="arr" d="M66,70 L92,120" marker-end="url(#a)"/><path class="arr" d="M120,158 L152,177" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0L6,3L0,6z" fill="#8CDCA6"/></marker></defs>
+  <text class="lab" x="66" y="58" text-anchor="middle">start</text>
+  <text class="lab" x="205" y="168" text-anchor="middle">minimum</text>
+  <text class="lab" x="220" y="210">each step = one −η·gradient update</text>
+</svg>
 ```
 
 **Why the minus sign.** The gradient points *uphill* by definition — it is the direction of steepest
@@ -1724,17 +1756,17 @@ Slide 25 `[f69]` (28:01). What the whole cycle looks like in code and in memory.
 > **right → left**: each layer computes its gradient $\partial L/\partial W^l$ from the layer after
 > it, and updates its weights.
 
+```mermaid
+flowchart LR
+    I["input"] --> H1["Hidden 1"] --> H2["Hidden 2"] --> O["output ŷ"] --> L(["Loss L"])
+    L -->|"∂L/∂ŷ"| D3["δ³ = ∂L/∂z³<br/><small>update W³ (H2→Out)</small>"]
+    D3 -->|"δ² from δ³"| D2["δ²<br/><small>update W² (H1→H2)</small>"]
+    D2 -->|"δ¹ from δ²"| D1["δ¹<br/><small>update W¹ (In→H1)</small>"]
+    classDef term fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class L term
 ```
-  Input      Hidden 1      Hidden 2      Output      Loss
-    ○ ────────  ●  ────────  ●  ────────  ○  ────────▌L▐
-                                                       │
-   ┌────────────┬─────────────┬───────────┬────────────┘
-   │            │             │           │
- δ¹ from δ²   δ² from δ³   δ³ = ∂L/∂z³   start error ∂L/∂ŷ
- update W¹    update W²    update W³
- (In→H1)      (H1→H2)      (H2→Out)
-        ◄──────────────────────────────────────
-```
+
+The forward pass computes the prediction; one backward sweep then hands every layer its gradient.
 
 > In code, the whole step is 5 lines:
 
@@ -1950,9 +1982,24 @@ Slide 28 `[f77]` (32:00). Chapter 6 opens by listing what breaks.
 
 $$\text{SGD:}\qquad \theta \leftarrow \theta - \eta\nabla_\theta L$$
 
-```python
-# vanilla SGD — just "step downhill by learning-rate × gradient"; simple but fragile
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+```svg
+<svg viewBox="0 0 620 210" role="img" aria-label="SGD zig-zags across a ravine" font-family="system-ui,sans-serif">
+  <style>.c{fill:none;stroke:#4C4739;stroke-width:1.2}.zig{fill:none;stroke:#E89170;stroke-width:1.8}
+    .want{fill:none;stroke:#8CDCA6;stroke-width:2}.ttl{fill:#EDE6D7;font-size:12px;font-weight:700}.lab{fill:#B4AA95;font-size:11px}</style>
+  <g transform="translate(20,14)">
+    <text class="ttl" x="130" y="10" text-anchor="middle">what SGD does</text>
+    <ellipse class="c" cx="130" cy="95" rx="120" ry="34"/><ellipse class="c" cx="130" cy="95" rx="80" ry="22"/><ellipse class="c" cx="130" cy="95" rx="40" ry="11"/>
+    <path class="zig" d="M20,60 L60,128 L92,64 L120,124 L146,72 L168,116 L188,84 L204,106 L216,92 L226,98"/>
+    <text class="lab" x="130" y="160" text-anchor="middle">zig-zag across the steep axis, slow net progress</text>
+  </g>
+  <g transform="translate(340,14)">
+    <text class="ttl" x="130" y="10" text-anchor="middle">what you want</text>
+    <ellipse class="c" cx="130" cy="95" rx="120" ry="34"/><ellipse class="c" cx="130" cy="95" rx="80" ry="22"/><ellipse class="c" cx="130" cy="95" rx="40" ry="11"/>
+    <path class="want" d="M14,95 L232,95" marker-end="url(#w)"/>
+    <defs><marker id="w" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0L7,3L0,6z" fill="#8CDCA6"/></marker></defs>
+    <text class="lab" x="130" y="160" text-anchor="middle">straight along the gentle valley floor</text>
+  </g>
+</svg>
 ```
 
 > **What we want** — the next few optimizers each add one of these ingredients:
@@ -2012,9 +2059,24 @@ Slide 29 `[f79]` (33:07).
 
 $$v_t = \beta v_{t-1} + \nabla L \qquad\qquad \theta \leftarrow \theta - \eta\,v_t$$
 
-```python
-SGD(params, lr=0.01, momentum=0.9)
+```svg
+<svg viewBox="0 0 560 160" role="img" aria-label="SGD oscillates, momentum smooths" font-family="system-ui,sans-serif">
+  <style>.ttl{fill:#EDE6D7;font-size:12px;font-weight:700}
+    .sgd{fill:none;stroke:#E89170;stroke-width:1.8}.mom{fill:none;stroke:#8CDCA6;stroke-width:2}.ax{stroke:#4C4739;stroke-width:1.2}</style>
+  <g transform="translate(20,16)">
+    <text class="ttl" x="120" y="10" text-anchor="middle">plain SGD — oscillates</text>
+    <line class="ax" x1="0" y1="70" x2="240" y2="70"/>
+    <path class="sgd" d="M0,70 C20,20 40,120 60,70 C80,25 100,115 120,70 C140,30 160,110 180,70 C200,40 220,100 240,72"/>
+  </g>
+  <g transform="translate(300,16)">
+    <text class="ttl" x="120" y="10" text-anchor="middle">+ momentum — smooth</text>
+    <line class="ax" x1="0" y1="70" x2="240" y2="70"/>
+    <path class="mom" d="M0,70 C40,66 70,52 110,44 C150,38 190,36 240,35"/>
+  </g>
+</svg>
 ```
+
+Momentum accumulates a running average of past gradients: the oscillating components cancel, the consistent downhill component adds up.
 
 ```
    SGD (oscillates)              + momentum (smooth)
@@ -2274,17 +2336,15 @@ ends than a linear ramp does.
 Check the endpoints: at $t=0$, $\cos(0) = 1$, so $\eta = \eta_{\max}$ ✓. At $t=T$, $\cos(\pi) = -1$,
 so $\eta = \eta_{\min}$ ✓.
 
+```mermaid
+xychart-beta
+    title "Learning-rate schedule: linear warmup, then cosine decay"
+    x-axis "training step" 0 --> 100
+    y-axis "learning rate" 0 --> 1
+    line [0.05, 0.5, 1.0, 0.97, 0.88, 0.72, 0.52, 0.31, 0.13, 0.03]
 ```
-  η │      ╭──────╮ warmup peak
-    │     ╱        ╲
-    │    ╱          ╲___
-    │   ╱                ╲___
-    │  ╱                      ╲____
-    │ ╱                             ╲______
-    └─────────────────────────────────────── step
-      warmup      cosine decay
-      (~1-5%)     (the rest)
-```
+
+The first few percent of steps ramp the rate up from near zero (so early, badly-scaled gradients don't blow the weights out); the rest is a smooth cosine glide back down.
 
 ```python
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -2330,15 +2390,12 @@ Slide 32 `[f85]` (36:08). The cheat sheet.
 > equally hard. This is a genuinely open area, and saying so is a better interview answer than
 > asserting the flat-minima explanation as settled.
 
-```interactive
-type: animation
-title: Five optimizers on one loss surface
-concept: What momentum and adaptive rates each contribute
-control: Checkboxes to race any subset of SGD / SGD+Momentum / RMSProp / Adam / AdamW; a dropdown for the surface (ravine · saddle · mixed-scale bowl); a learning-rate slider
-observe: Five paths descending the contour plot simultaneously, with a step counter and current loss per optimizer
-insight: On the ravine, SGD zig-zags across the walls while momentum's path straightens out; on the saddle, plain SGD stalls at the flat point while the momentum-based methods coast through; on the mixed-scale bowl, only the adaptive methods make progress on both axes at once — each surface isolates exactly one of §18's four failures
-fallback: The four failure modes in §18, the momentum arithmetic tables in §19.1, and the comparison table in §22.
-```
+| If you are… | use |
+|---|---|
+| prototyping, or anything Transformer-shaped | **AdamW**, lr 3e-4, warmup + cosine — done |
+| doing vision and need the last 0.5 % | prototype on AdamW, final runs on **SGD + momentum** |
+| memory-constrained (a huge model) | **SGD + M** (1× state, not 2×), or 8-bit Adam |
+| training an RNN / non-stationary objective | **RMSProp** or **Adam** |
 
 **The practical decision rule** most teams actually follow:
 
@@ -2618,14 +2675,13 @@ Slides 37–38 `[f97]`, `[f99]` (39:55 → 40:59). Everything assembled.
 
 > **PER MINI-BATCH — these six steps run in order, then repeat over the whole dataset.**
 
+```mermaid
+flowchart LR
+    S1["① zero_grad()<br/><small>clear old gradients</small>"] --> S2["② forward<br/><small>out = model(x)</small>"] --> S3["③ loss<br/><small>criterion(out, y)</small>"] --> S4["④ backward()<br/><small>compute ∂L/∂W</small>"] --> S5["⑤ clip grads<br/><small>prevent NaN</small>"] --> S6["⑥ optim.step()<br/><small>update weights</small>"]
+    S6 -.->|"next mini-batch"| S1
 ```
- ①zero_grad() → ②forward → ③loss → ④backward() → ⑤clip grads → ⑥optim.step()
-  clear old      out =      criterion  compute      prevent      update
-  gradients      model(x)   (out, y)    ∂L/∂W        NaN          weights
-        ↺ loop back to step 1 for the next mini-batch
 
- Once per epoch (after all batches):  scheduler.step() · validate · early-stop check
-```
+Once per epoch, after all batches: `scheduler.step()` · validate · early-stop check.
 
 > Six steps per batch — **clear → forward → loss → backward → clip → update** — then once per epoch,
 > decay the LR, check validation, and stop early if it plateaus.
@@ -2899,51 +2955,20 @@ Slide 42 `[f107]` (44:11) — the deck's own recap, reproduced verbatim as a rev
 
 ### The dependency map
 
-```
-   ┌──────────────────────────────────────────────────────────────────┐
-   │  §1 PERCEPTRON        y = step(wᵀx + b)                           │
-   │      ↓ can't do XOR (proved, §1.1)                                │
-   │  §2 MLP               stack layers                                │
-   │      ↓ ...but a stack of linear maps IS a linear map (§4)         │
-   │  §5 ACTIVATIONS       σ between every layer — the wall that       │
-   │                       stops the matrices merging                  │
-   └───────────────────────────┬──────────────────────────────────────┘
-                               │  now the object can compute
-   ┌───────────────────────────▼──────────────────────────────────────┐
-   │  §9  FORWARD PROP     x → Wx+b → σ → … → ŷ        (a prediction)  │
-   │  §11 COMP. GRAPH      every op recorded as a DAG, inputs saved    │
-   │  §12 LOSS             L(ŷ, y) → ONE scalar        (a score)       │
-   └───────────────────────────┬──────────────────────────────────────┘
-                               │  one number, and a graph to walk back
-   ┌───────────────────────────▼──────────────────────────────────────┐
-   │  §14 GRADIENT DESCENT   W ← W − η ∂L/∂W                           │
-   │  §15 BACKPROP           δˡ = (Wˡ⁺¹)ᵀδˡ⁺¹ ⊙ σ′(zˡ)                 │
-   │                         ∂L/∂Wˡ = δˡ(aˡ⁻¹)ᵀ                        │
-   │                         ONE sweep, O(params), 270,000× faster     │
-   └───────────────────────────┬──────────────────────────────────────┘
-                               │
-             ┌─────────────────┴──────────────────┐
-             ▼                                    ▼
-   ┌────────────────────────┐        ┌───────────────────────────┐
-   │ §17 IT BREAKS          │        │ §18 THE STEPS ARE BAD     │
-   │ σ′ multiplies L times  │        │ ravines · saddles ·       │
-   │ 0.25⁵⁰ ≈ 10⁻³⁰         │        │ mixed scales · noise      │
-   │ FIX: ReLU, residuals,  │        │ FIX: §19 momentum +       │
-   │ init, clip, norm       │        │ adaptive → §20 Adam →     │
-   └────────────────────────┘        │ §21 AdamW                 │
-                                     └───────────────────────────┘
-                               │
-   ┌───────────────────────────▼──────────────────────────────────────┐
-   │  §23 IT MEMORISES       Train 99.8 / Val 72                       │
-   │      dropout · weight decay · early stop · label smoothing        │
-   │  §24 BATCH NORM         stabilise every layer's input             │
-   │                         → Train 97 / Val 94                       │
-   └───────────────────────────┬──────────────────────────────────────┘
-                               ▼
-   ┌──────────────────────────────────────────────────────────────────┐
-   │  §25 THE TRAINING LOOP  — all seven chapters, twenty lines        │
-   │  §26 THE THREE BUGS     — and what each one looks like            │
-   └──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    P1["<b>§1 Perceptron</b> · y = step(wᵀx + b)"]
+    P1 -->|"can't do XOR (§1.1)"| P2["<b>§2 MLP</b> · stack layers"]
+    P2 -->|"a stack of linear maps is still linear (§4)"| P5["<b>§5 Activations</b><br/><small>σ between every layer — the wall that stops the matrices merging</small>"]
+    P5 --> FWD["<b>§9 Forward prop</b> · x → Wx+b → σ → … → ŷ<br/><b>§11 Comp. graph</b> · every op a DAG<br/><b>§12 Loss</b> · L(ŷ, y) → one scalar"]
+    FWD --> GD["<b>§14 Gradient descent</b> · W ← W − η ∂L/∂W<br/><b>§15 Backprop</b> · δˡ = (Wˡ⁺¹)ᵀδˡ⁺¹ ⊙ σ′(zˡ)<br/><small>one sweep, O(params), ~270,000× faster</small>"]
+    GD --> BR["<b>§17 It breaks</b><br/><small>σ′ multiplies L times · 0.25⁵⁰ ≈ 10⁻³⁰<br/>fix: ReLU, residuals, init, clip, norm</small>"]
+    GD --> ST["<b>§18 The steps are bad</b><br/><small>ravines · saddles · mixed scales · noise<br/>fix: §19 momentum + adaptive → §20 Adam → §21 AdamW</small>"]
+    BR --> MEM["<b>§23 It memorises</b> · Train 99.8 / Val 72<br/><small>dropout · weight decay · early stop · label smoothing</small><br/><b>§24 Batch norm</b> · stabilise every layer's input → Train 97 / Val 94"]
+    ST --> MEM
+    MEM --> END(["<b>§25 The training loop</b> — twenty lines · <b>§26 The three bugs</b>"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class P5,GD,END k
 ```
 
 ### Five threads

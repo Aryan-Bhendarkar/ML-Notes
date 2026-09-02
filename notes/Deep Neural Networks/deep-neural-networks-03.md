@@ -59,14 +59,16 @@ roughly **10 minutes of live notebook** captured across 64 frames.
 
 The five parts build on each other in a single argument, and the argument is unusually clean:
 
-```
-MLPs can't do sequences  →  RNNs can, by sharing weights and carrying a hidden state
-                         →  but their gradients die over long sequences  (0.9^100 = 0.0000265)
-                         →  LSTM fixes it with an ADDITIVE cell-state highway
-                         →  GRU does nearly the same with fewer parts
-                         →  one direction is half-blind  →  BiRNN
-                         →  input and output lengths differ  →  Seq2Seq
-                         →  and here is how you actually build all of it
+```mermaid
+flowchart TD
+    A["MLPs can't do sequences"] --> B["<b>RNN</b> — share weights, carry a hidden state"]
+    B -->|"gradients die over long sequences · 0.9¹⁰⁰ ≈ 0.0000265"| C["<b>LSTM</b> — an additive cell-state highway"]
+    C -->|"nearly the same, fewer parts"| D["<b>GRU</b>"]
+    C --> E["one direction is half-blind → <b>BiRNN</b>"]
+    E --> G["input and output lengths differ → <b>Seq2Seq</b>"]
+    G --> H(["…and how to build all of it in PyTorch"])
+    classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class H term
 ```
 
 If you are revising under time pressure: **§5–§6 and §13 are the interview core.** "Why do RNN
@@ -291,55 +293,20 @@ The rest of the lecture is the response to that:
 
 ### The whole lecture in one diagram
 
-```
-   MLP on a sequence                       THE THREE FAILURES
-   ─────────────────                       ──────────────────
-   [x1 x2 x3 x4] → flatten → dense    ✗ variable length
-                                      ✗ no order awareness
-                                      ✗ no parameter sharing
-                    │
-                    ▼
-   ┌────────────────────────────────────────────────────┐
-   │  RNN:  h_t = tanh(W_hh·h_{t-1} + W_xh·x_t + b)     │  §3
-   │        ONE W, shared over all t; h carries memory   │
-   └───────────────────────┬────────────────────────────┘
-                           │
-                           ▼  but backprop through time gives...
-   ┌────────────────────────────────────────────────────┐
-   │  ∂L/∂h_k = ∂L/∂h_T · Π  W_hh^T · diag(1 − h_t²)    │  §6
-   │  ρ(W_hh) < 1 → vanish      ρ(W_hh) > 1 → explode    │
-   │  0.9^100 = 0.0000265  ← the gradient is DEAD        │  §5
-   └───────────────────────┬────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼           §7
-   clipping           truncated BPTT      LSTM  ← the real fix
-   (explode only)     (loses long-range)    │
-                                            ▼
-   ┌────────────────────────────────────────────────────┐
-   │  C_t = f_t ⊙ C_{t−1} + i_t ⊙ C̃_t                   │  §11
-   │        ▲ADDITION, not matrix multiplication         │
-   │  gradient along C is Π f_t                          │
-   │  0.99^100 = 0.366  ← the gradient SURVIVES          │  §13
-   └───────────────────────┬────────────────────────────┘
-                           │
-              ┌────────────┴────────────┐
-              ▼                         ▼
-        GRU (2 gates)  §15        still one-directional
-                                        │
-                                        ▼
-                            BiRNN: h = [h→ ; h←]           §18
-                            output dim = 2 × hidden_size
-                                        │
-                                        ▼  still 1 output per input
-                            Seq2Seq: encoder → context → decoder   §20
-                                        │
-                                        ▼  context is a bottleneck
-                                   (→ attention, beyond this deck)
-
-   ═══════════════════════════════════════════════════════════
-   AND HOW TO BUILD ANY OF IT:  Tensors · Autograd · nn.Module ·
-   DataLoader · the 5-step loop · a working classifier   §21–§25
+```mermaid
+flowchart TD
+    MLP["<b>MLP on a sequence</b> — flatten → dense<br/><small>✗ variable length · ✗ no order · ✗ no parameter sharing</small>"]
+    MLP --> RNN["<b>§3 RNN</b> · hₜ = tanh(W_hh·hₜ₋₁ + W_xh·xₜ + b)<br/><small>one shared W; h carries memory</small>"]
+    RNN -->|"backprop through time"| BPTT["<b>§5–6</b> ∂L/∂h_k = ∂L/∂h_T · Π W_hhᵀ · diag(1 − hₜ²)<br/><small>ρ(W_hh) &lt; 1 → vanish · &gt; 1 → explode · 0.9¹⁰⁰ ≈ 0.0000265 → dead</small>"]
+    BPTT --> CLIP["clipping<br/><small>explode only</small>"]
+    BPTT --> TR["truncated BPTT<br/><small>loses long range</small>"]
+    BPTT --> LSTM["<b>§7–11 LSTM</b> · Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ C̃ₜ<br/><small>ADDITION, not matmul · gradient along C is Π fₜ · 0.99¹⁰⁰ ≈ 0.366 → survives</small>"]
+    LSTM --> GRU["<b>§15 GRU</b> — 2 gates, nearly the same"]
+    LSTM --> BI["<b>§18 BiRNN</b> · h = [h→ ; h←] · output dim = 2 × hidden"]
+    BI --> S2S["<b>§20 Seq2Seq</b> · encoder → context → decoder<br/><small>context is a bottleneck → attention (next module)</small>"]
+    S2S --> BUILD(["§21–25 · Tensors · Autograd · nn.Module · DataLoader · the 5-step loop"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class RNN,LSTM,BUILD k
 ```
 
 ---
@@ -483,18 +450,27 @@ with the caption:
 > and, above the diagram: *"Same weights in every cell. after seeing 'hel', $h_3$ knows enough to
 > predict 'l' next"*
 
-```
-  predict:   "e"      "l"      "l"      "o"      "?"
-              ▲        ▲        ▲        ▲        ▲
-              │        │        │        │        │
-           ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐
-     h0 ──▶│ RNN │─▶│ RNN │─▶│ RNN │─▶│ RNN │─▶│ RNN │──▶ h5
-           └─────┘h1└─────┘h2└─────┘h3└─────┘h4└─────┘
-              ▲        ▲        ▲        ▲        ▲
-              │        │        │        │        │
-  input:     "h"      "e"      "l"      "l"      "o"
-
-           ↑ every one of these five boxes is THE SAME WEIGHTS ↑
+```svg
+<svg viewBox="0 0 620 200" role="img" aria-label="An RNN unrolled over five time steps" font-family="system-ui,sans-serif">
+  <style>.cell{fill:#2C2820;stroke:#8CDCA6;stroke-width:1.5}.e{stroke:#7C7361;stroke-width:1.4}
+    .io{fill:#B4AA95;font-size:12px}.h{fill:#7C7361;font-size:10.5px}.note{fill:#8CDCA6;font-size:11px}</style>
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0L7,3L0,6z" fill="#7C7361"/></marker></defs>
+  <g class="io" text-anchor="middle">
+    <text x="70" y="30">"e"</text><text x="180" y="30">"l"</text><text x="290" y="30">"l"</text><text x="400" y="30">"o"</text><text x="510" y="30">"?"</text>
+  </g>
+  <g class="e" marker-end="url(#ar)">
+    <line x1="70" y1="38" x2="70" y2="66"/><line x1="180" y1="38" x2="180" y2="66"/><line x1="290" y1="38" x2="290" y2="66"/><line x1="400" y1="38" x2="400" y2="66"/><line x1="510" y1="38" x2="510" y2="66"/>
+  </g>
+  <g class="cell"><rect x="40" y="70" width="60" height="46" rx="6"/><rect x="150" y="70" width="60" height="46" rx="6"/><rect x="260" y="70" width="60" height="46" rx="6"/><rect x="370" y="70" width="60" height="46" rx="6"/><rect x="480" y="70" width="60" height="46" rx="6"/></g>
+  <g class="io" text-anchor="middle" font-size="11"><text x="70" y="98">RNN</text><text x="180" y="98">RNN</text><text x="290" y="98">RNN</text><text x="400" y="98">RNN</text><text x="510" y="98">RNN</text></g>
+  <g class="e" marker-end="url(#ar)">
+    <line x1="12" y1="93" x2="38" y2="93"/><line x1="100" y1="93" x2="148" y2="93"/><line x1="210" y1="93" x2="258" y2="93"/><line x1="320" y1="93" x2="368" y2="93"/><line x1="430" y1="93" x2="478" y2="93"/><line x1="540" y1="93" x2="574" y2="93"/>
+    <line x1="70" y1="130" x2="70" y2="118"/><line x1="180" y1="130" x2="180" y2="118"/><line x1="290" y1="130" x2="290" y2="118"/><line x1="400" y1="130" x2="400" y2="118"/><line x1="510" y1="130" x2="510" y2="118"/>
+  </g>
+  <g class="h"><text x="6" y="90">h₀</text><text x="120" y="88">h₁</text><text x="230" y="88">h₂</text><text x="340" y="88">h₃</text><text x="450" y="88">h₄</text><text x="578" y="90">h₅</text></g>
+  <g class="io" text-anchor="middle"><text x="70" y="150">"h"</text><text x="180" y="150">"e"</text><text x="290" y="150">"l"</text><text x="400" y="150">"l"</text><text x="510" y="150">"o"</text></g>
+  <text class="note" x="310" y="184" text-anchor="middle">every one of these five boxes is THE SAME WEIGHTS</text>
+</svg>
 ```
 
 ### 3.1 The recurrence
@@ -933,26 +909,24 @@ The slide's caption is the sentence to memorise:
 
 > *"The cell state is a conveyor belt. Information flows unchanged unless a gate actively modifies it."*
 
+```mermaid
+flowchart LR
+    Cin["Cₜ₋₁"] --> MUL(("×")) --> ADD(("+")) --> Cout["Cₜ"]
+    F["forget gate<br/>fₜ = σ(·)"] --> MUL
+    I["input gate<br/>iₜ = σ(·)"] --> IM(("×"))
+    G["candidate<br/>C̃ₜ = tanh(·)"] --> IM
+    IM --> ADD
+    Cout --> TANH["tanh"] --> OM(("×")) --> H["hₜ"]
+    O["output gate<br/>oₜ = σ(·)"] --> OM
+    X["[hₜ₋₁, xₜ]"] -.-> F & I & G & O
+    classDef hw fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class Cin,ADD,Cout hw
 ```
-     C_{t-1} ──────────×──────────────(+)──────────────────────▶  C_t
-                       ▲               ▲                    │
-                    f=0.9              │                    │
-                       │               │                  tanh
-                       │            ┌──┴──┐                  │
-                     ┌─┴─┐          ×     │                  ▼
-                     │ σ │        ┌─┴─┐ ┌─┴──┐             ┌──┴──┐
-                     └─┬─┘        │ σ │ │tanh│             │  ×  │───▶ h_t
-                    forget(f)     └─┬─┘ └─┬──┘             └──┬──┘
-                       │          input(i) candidate          │
-                       │            │      │                ┌─┴─┐
-                       │            │      │                │ σ │
-                       │            │      │                └─┬─┘
-                       │            │      │               output(o)
-     h_{t-1} ──┐       │            │      │                  │
-               ├─▶ [h_{t-1}, x_t] ──┴──────┴──────────────────┘
-       x_t  ───┘
-                                                       ────────▶  h_t
-```
+
+The cell state `C` runs straight across the top: the only things that touch it are an
+element-wise multiply by the forget gate and an **addition** of new content. That additive
+path is why the gradient along `C` is a product of `fₜ` values — a learned number near 1 —
+rather than a product of weight matrices.
 
 ### 9.1 The two states, and why there are two
 
@@ -1519,17 +1493,15 @@ worth saying plainly.
 
 ### 16.2 The decision rule
 
-```
-Is your sequence data?
-│
-├─ NLP / text, and you have compute and data ──────────▶ Transformer (or a pretrained one)
-│
-├─ Time series / forecasting ──────────────────────────▶ LSTM or GRU. Start with GRU.
-│
-├─ Edge device, streaming, tight memory ───────────────▶ GRU (smallest that works)
-│
-└─ Small dataset (< ~10k sequences) ───────────────────▶ GRU — fewer params, less overfitting
-                                                          (Part 2 §9: less capacity, flatter minima)
+```mermaid
+flowchart TD
+    Q["<b>Is your sequence data?</b>"]
+    Q -->|"NLP / text, with compute and data"| T["Transformer (or a pretrained one)"]
+    Q -->|"time series / forecasting"| G1["LSTM or GRU — start with GRU"]
+    Q -->|"edge device, streaming, tight memory"| G2["GRU (smallest that works)"]
+    Q -->|"small dataset (&lt; ~10k sequences)"| G3["GRU — fewer params, less overfitting"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class Q ask
 ```
 
 **And when you have chosen recurrent, LSTM vs GRU:** start with **GRU** (fewer parameters, faster,
@@ -1592,20 +1564,22 @@ $$\boxed{h_t = \left[\overrightarrow{h_t}\ ;\ \overleftarrow{h_t}\right] \qquad 
 The deck's diagram, with the annotation *"At 'apple': backward RNN already knows 'laptop charger' →
 BRAND!"*:
 
-```
-  forward  →  ┌────┐    ┌────┐    ┌────┐    ┌────┐
-              │h1→ │───▶│h2→ │───▶│h3→ │───▶│h4→ │
-              └────┘    └────┘    └────┘    └────┘
-                 │
-  backward ←  ┌────┐    ┌────┐    ┌────┐    ┌────┐
-              │h1← │◀───│h2← │◀───│h3← │◀───│h4← │
-              └────┘    └────┘    └────┘    └────┘
-                 │
-              "apple"   "laptop"  "charger"  "usb-c"
-                 │
-                 ▼
-            h = [h→ ; h←]     ← at position 1, h← has ALREADY read
-                                  laptop, charger, usb-c
+```svg
+<svg viewBox="0 0 560 220" role="img" aria-label="Bidirectional RNN" font-family="system-ui,sans-serif">
+  <style>.f{fill:#2C2820;stroke:#8CDCA6;stroke-width:1.4}.b{fill:#2C2820;stroke:#93B0D6;stroke-width:1.4}
+    .e{stroke:#7C7361;stroke-width:1.3}.t{fill:#B4AA95;font-size:11px}.lab{fill:#7C7361;font-size:11px}.note{fill:#8CDCA6;font-size:11px}</style>
+  <defs><marker id="r" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0L7,3L0,6z" fill="#7C7361"/></marker></defs>
+  <text class="lab" x="6" y="42">forward →</text>
+  <g class="f"><rect x="90" y="26" width="70" height="34" rx="5"/><rect x="220" y="26" width="70" height="34" rx="5"/><rect x="350" y="26" width="70" height="34" rx="5"/><rect x="480" y="26" width="60" height="34" rx="5"/></g>
+  <g class="e" marker-end="url(#r)"><line x1="160" y1="43" x2="218" y2="43"/><line x1="290" y1="43" x2="348" y2="43"/><line x1="420" y1="43" x2="478" y2="43"/></g>
+  <g class="t" text-anchor="middle"><text x="125" y="47">h1→</text><text x="255" y="47">h2→</text><text x="385" y="47">h3→</text><text x="510" y="47">h4→</text></g>
+  <text class="lab" x="6" y="104">backward ←</text>
+  <g class="b"><rect x="90" y="88" width="70" height="34" rx="5"/><rect x="220" y="88" width="70" height="34" rx="5"/><rect x="350" y="88" width="70" height="34" rx="5"/><rect x="480" y="88" width="60" height="34" rx="5"/></g>
+  <g class="e" marker-end="url(#r)"><line x1="220" y1="105" x2="162" y2="105"/><line x1="350" y1="105" x2="292" y2="105"/><line x1="480" y1="105" x2="422" y2="105"/></g>
+  <g class="t" text-anchor="middle"><text x="125" y="109">h1←</text><text x="255" y="109">h2←</text><text x="385" y="109">h3←</text><text x="510" y="109">h4←</text></g>
+  <g class="t" text-anchor="middle"><text x="125" y="150">"apple"</text><text x="255" y="150">"laptop"</text><text x="385" y="150">"charger"</text><text x="510" y="150">"usb-c"</text></g>
+  <text class="note" x="280" y="188" text-anchor="middle">h = [h→ ; h←] — at position 1, h← has already read laptop, charger, usb-c</text>
+</svg>
 ```
 
 | Symbol | Read it as | What it means |
@@ -1750,17 +1724,12 @@ don't work that way [slide 72, 39:30]:
 > d'accord' (3 words). A standard RNN outputs one thing per input step and cannot handle this
 > mismatch."*
 
-```
-              ENCODER                            DECODER
-        ┌─────┐ ┌─────┐ ┌─────┐             ┌─────┐ ┌─────┐ ┌─────┐
-        │Enc 1│▶│Enc 2│▶│Enc 3│──▶(context)▶│Dec 1│▶│Dec 2│▶│Dec 3│
-        └──┬──┘ └──┬──┘ └──┬──┘      ▲      └──┬──┘ └──┬──┘ └──┬──┘
-           │       │       │         │         │       │       │
-         "how"   "are"   "you"   Bottleneck! "comment" "allez" "vous"
-                                 Entire
-        English (source)         sentence     French (target)
-                                 in ONE
-                                 vector
+```mermaid
+flowchart LR
+    E1["Enc 1<br/><small>“how”</small>"] --> E2["Enc 2<br/><small>“are”</small>"] --> E3["Enc 3<br/><small>“you”</small>"] --> CTX{{"context<br/><small>the entire source sentence in ONE vector — the bottleneck</small>"}}
+    CTX --> D1["Dec 1<br/><small>“comment”</small>"] --> D2["Dec 2<br/><small>“allez”</small>"] --> D3["Dec 3<br/><small>“vous”</small>"]
+    classDef bn fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class CTX bn
 ```
 
 ### 20.1 The three components
@@ -2650,83 +2619,23 @@ The deck's closing slide [slide 151, 56:29]:
 
 ## Putting it together
 
-```
-                    ┌──────────────────────────────────────────────┐
-                    │  SEQUENCES: data where ORDER matters   §1     │
-                    └───────────────────┬──────────────────────────┘
-                                        │
-                  three failures of a feedforward net          §2
-                  ┌─────────────────────┼─────────────────────┐
-                  ▼                     ▼                     ▼
-          variable length        no order awareness    no parameter sharing
-                  │                     │                     │
-                  └─────────────────────┼─────────────────────┘
-                                        ▼
-        ┌───────────────────────────────────────────────────────────┐
-        │  RNN   h_t = tanh(W_hh h_{t−1} + W_xh x_t + b)      §3     │
-        │  ONE shared W  +  a hidden state carried forward           │
-        │  h_t = a COMPRESSED SUMMARY of x_1…x_t             §4      │
-        └───────────────────────────────┬───────────────────────────┘
-                                        │
-                                        ▼  differentiate through time
-        ┌───────────────────────────────────────────────────────────┐
-        │  ∂L/∂h_k = ∂L/∂h_T · Π  W_hh^T · diag(1 − h_t²)     §6     │
-        │                       ▲                                    │
-        │              a PRODUCT of T factors, each < 1              │
-        │              ρ(W_hh) < 1 → vanish · > 1 → explode          │
-        │              0.9^100 = 0.0000265  → DEAD           §5      │
-        │              effective memory ≈ 44 steps                   │
-        └───────────────────────────────┬───────────────────────────┘
-                                        │
-       ┌────────────────────────────────┼────────────────────────────┐
-       ▼                                ▼                            ▼    §7
-  gradient clipping              truncated BPTT              ARCHITECTURE
-  fixes EXPLODE only             a compute fix, not             │
-  (norm-rescale, keeps           a learning fix — it            │
-   direction)                    DELETES long-range             │
-                                                                 ▼
-        ┌───────────────────────────────────────────────────────────┐
-        │  LSTM   C_t = f_t ⊙ C_{t−1} + i_t ⊙ C̃_t          §9–§11   │
-        │                              ▲                             │
-        │                      ADDITION, so ∂C_t/∂C_{t−1} = f_t      │
-        │         gradient along C = Π f_t   — a LEARNED number      │
-        │         0.99^100 = 0.366  → SURVIVES              §13      │
-        │                                                            │
-        │   forget = ERASE   input = WRITE   output = REVEAL   §10   │
-        │   two states: C is protected, h is the exposed view  §9.1  │
-        │   [0.8,−0.2] → [0.935,−0.18]: replace one, hold one  §12   │
-        └───────────────────────────────┬───────────────────────────┘
-                                        │
-                    ┌───────────────────┴───────────────────┐
-                    ▼                                       ▼
-        ┌───────────────────────┐              still limited in TWO ways
-        │  GRU        §15       │                          │
-        │  merge f,i → z        │            ┌─────────────┴─────────────┐
-        │  drop the cell state  │            ▼                           ▼
-        │  3/4 the params       │    reads only ONE way          ONE output
-        │  ⚠ z-convention trap  │            │                   per input
-        └───────────────────────┘            ▼                           ▼
-                                  ┌──────────────────┐      ┌──────────────────────┐
-                                  │ BiRNN     §17–19 │      │ Seq2Seq       §20    │
-                                  │ h=[h→ ; h←]      │      │ encoder→context→     │
-                                  │ dim = 2×hidden   │      │        decoder       │
-                                  │ ILLEGAL if you   │      │ lengths independent  │
-                                  │ generate         │      │ ⚠ context = bottleneck│
-                                  └──────────────────┘      └───────────┬──────────┘
-                                                                        ▼
-                                                            ➕ attention → Transformer
-                                                               (Module 5)      §20.4
-
-   ═══════════════════════════════════════════════════════════════════════════════
-                          AND HOW TO BUILD ALL OF IT                    §21–§25
-
-     Tensors ──▶ Autograd ──▶ nn.Module ──▶ DataLoader ──▶ the 5-step loop
-     (GPU +      (backward()   (tracks       (mini-        1 zero_grad
-      graph)      IS BPTT)      params)       batches)     2 forward
-                                                           3 loss
-     demo: 900 blobs → 4-32-3 MLP → 259 params            4 backward
-           ln(3)=1.10 → 0.311 → 0.005 → 100%     §24      5 step
-     debug: ln K check · overfit one batch · grad norms   §25
+```mermaid
+flowchart TD
+    S["<b>Sequences</b> — data where order matters · §1"]
+    S --> F["<b>three failures of a feedforward net</b> · §2<br/><small>variable length · no order awareness · no parameter sharing</small>"]
+    F --> RNN["<b>RNN</b> · hₜ = tanh(W_hh hₜ₋₁ + W_xh xₜ + b) · §3–4<br/><small>one shared W + a hidden state carried forward · hₜ = a compressed summary of x₁…xₜ</small>"]
+    RNN -->|"differentiate through time"| BPTT["<b>∂L/∂h_k = ∂L/∂h_T · Π W_hhᵀ · diag(1 − hₜ²)</b> · §5–6<br/><small>a product of T factors, each &lt; 1 · ρ(W_hh) &lt; 1 → vanish · &gt; 1 → explode<br/>0.9¹⁰⁰ ≈ 0.0000265 → dead · effective memory ≈ 44 steps</small>"]
+    BPTT --> CLIP["gradient clipping<br/><small>fixes explode only — rescales, keeps direction</small>"]
+    BPTT --> TR["truncated BPTT<br/><small>a compute fix, not a learning fix — deletes long range</small>"]
+    BPTT --> LSTM["<b>LSTM</b> · Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ C̃ₜ · §9–11<br/><small>ADDITION, so ∂Cₜ/∂Cₜ₋₁ = fₜ — a learned number · 0.99¹⁰⁰ ≈ 0.366 → survives<br/>forget = ERASE · input = WRITE · output = REVEAL · C is protected, h is the exposed view</small>"]
+    LSTM --> GRU["<b>GRU</b> · §15<br/><small>merge f, i → z · drop the cell state · ¾ the params · ⚠ z-convention trap</small>"]
+    LSTM --> LIM["still limited in two ways"]
+    LIM --> BI["<b>BiRNN</b> · §17–19<br/><small>reads only one way → h = [h→ ; h←] · dim = 2 × hidden · illegal if you generate</small>"]
+    LIM --> S2S["<b>Seq2Seq</b> · §20<br/><small>one output per input → encoder → context → decoder · lengths independent · ⚠ context = bottleneck</small>"]
+    S2S --> ATT(["➕ attention → Transformer (Module 5) · §20.4"])
+    ATT --> BUILD["<b>And how to build all of it</b> · §21–25<br/><small>Tensors → Autograd (backward() IS BPTT) → nn.Module → DataLoader → the 5-step loop</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class RNN,LSTM,ATT k
 ```
 
 ### Walking the diagram
