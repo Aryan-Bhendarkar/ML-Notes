@@ -84,30 +84,16 @@ given that you never observe which Gaussian generated each point?"** The answer,
 Maximization, is derived from first principles rather than presented as a recipe, and the derivation is
 the entire substance of the lecture.
 
-```
-GMM: p(x) = Σ_k π_k N(x; μ_k, Σ_k)    — a universal density estimator      §3
-        │
-        ▼
-"Given data, how do we find θ = {π_k, μ_k, Σ_k}?"                          §4
-        │
-        ▼
-Maximum likelihood: maximize log p(X;θ) = Σ_i log p(x_i;θ)                 §4
-        │
-        ▼   the sum is INSIDE a log of a sum over the latent z — intractable
-        ▼
-Introduce a stand-in distribution q(z), decompose:                         §5–§6
-   log p(X;θ) = ELBO(q,θ) + KL(q(z) || p(z|x))
-        │
-        ▼   KL ≥ 0, so ELBO is a LOWER BOUND on the true log-likelihood — always
-        ▼
-EM alternates two steps that each only ever help:                          §7
-   E-step: set q(z) = p(z|x;θ)  → KL becomes exactly 0 → ELBO = true likelihood
-   M-step: maximize ELBO over θ, holding q fixed  → likelihood can't have decreased
-        │
-        ▼
-For GMMs specifically, this becomes two closed-form update formulas         §8
-   E-step → γ(z_nk), the "responsibilities" (soft cluster assignments)
-   M-step → new μ_k, Σ_k, π_k as weighted averages using those responsibilities
+```mermaid
+flowchart TD
+    G["<b>§3 GMM</b> · p(x) = Σₖ πₖ N(x; μₖ, Σₖ) — a universal density estimator"]
+    G --> Q["<b>§4 Given data, how do we find θ = {πₖ, μₖ, Σₖ}?</b>"]
+    Q --> ML["<b>Maximum likelihood</b> · maximise log p(X;θ) = Σᵢ log p(xᵢ;θ)<br/><small>the sum is inside a log of a sum over the latent z — intractable</small>"]
+    ML --> DEC["<b>§5–6 introduce a stand-in q(z)</b> · log p(X;θ) = ELBO(q,θ) + KL(q(z) ‖ p(z|x))<br/><small>KL ≥ 0, so ELBO is always a lower bound on the true log-likelihood</small>"]
+    DEC --> EM["<b>§7 EM alternates two steps that each only ever help</b><br/><small>E-step: q(z) = p(z|x;θ) → KL = 0 → ELBO = true likelihood · M-step: maximise ELBO over θ, q fixed → likelihood can't decrease</small>"]
+    EM --> CF["<b>§8 for GMMs: two closed-form updates</b><br/><small>E-step → γ(z_nk), the responsibilities (soft assignments) · M-step → μₖ, Σₖ, πₖ as responsibility-weighted averages</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DEC,EM k
 ```
 
 If you are revising under time pressure: **§5–§8 are the interview core.** "Derive the EM algorithm
@@ -258,51 +244,18 @@ mixture-of-Gaussians model** — the same derivation, specialized.
 
 ### The whole lecture in one diagram
 
-```
-    K-Means/Hierarchical/DBSCAN — all HARD assignments              Part 1 closing
-                            │
-                            ▼
-    "What if cluster membership is genuinely uncertain?"
-    → model it as a PROBABILITY, not a label
-                            │
-                            ▼
-    ┌──────────────────────────────────────────────────────────────┐
-    │  §3  GMM:  p(x) = Σ_k π_k N(x; μ_k, Σ_k)                     │
-    │       ▲ a universal density estimator (any p(x) approximable) │
-    │       ▲ ALSO a latent-variable model: z ~ Categorical(π),     │
-    │         x | z=k ~ N(μ_k, Σ_k)                                 │
-    │       "GENERATION": sample z, then sample x | z                │
-    │       "DISCOVERY": given x, infer p(z|x) — the soft cluster    │
-    └──────────────────────────────┬─────────────────────────────────┘
-                                   │
-                                   ▼
-    §4  "How do we fit θ={π,μ,Σ} to data?" → Maximum Likelihood
-        log p(X;θ) = Σ_i log Σ_z p(x_i,z;θ)
-                              ▲ log OF a sum — no closed form. INTRACTABLE.
-                                   │
-                                   ▼
-    §5–§6  Introduce q(z). Decompose the log-likelihood EXACTLY:
-        ┌──────────────────────────────────────────────────┐
-        │  ln p(X;θ) = L(q,θ) + KL(q(z) ‖ p(z|x))          │
-        │              ▲ ELBO         ▲ always ≥ 0          │
-        └──────────────────────────────────────────────────┘
-        ⇒ L(q,θ) is ALWAYS a lower bound on the true log-likelihood
-                                   │
-                                   ▼
-    §7  EM alternates two moves, each provably non-decreasing:
-        E-STEP: set q(z) = p(z|x;θ)  →  KL → 0  →  bound = true likelihood
-        M-STEP: maximize L(q,θ) over θ, q fixed  →  likelihood can't have dropped
-        "mountain-climbing": reshape the bound to touch the peak (E),
-                              then climb the bound to its own peak (M)
-                                   │
-                                   ▼
-    §8  For GMMs specifically, closed form:
-        E-step → γ(z_nk) = "responsibility": soft P(point n ∈ cluster k)
-        M-step → μ_k, Σ_k, π_k re-estimated as RESPONSIBILITY-WEIGHTED averages
-                                   │
-                                   ▼
-    §9  Related: PLSA — the SAME derivation, applied to discrete text data
-        (Gaussian → Multinomial; γ(z_nk) → per-word topic responsibility)
+```mermaid
+flowchart TD
+    P1["<b>Part 1 closing</b> — K-Means / Hierarchical / DBSCAN, all HARD assignments"]
+    P1 --> Q["<b>What if cluster membership is genuinely uncertain?</b><br/><small>model it as a probability, not a label</small>"]
+    Q --> G["<b>§3 GMM</b> · p(x) = Σₖ πₖ N(x; μₖ, Σₖ)<br/><small>a universal density estimator · also a latent-variable model: z ~ Categorical(π), x | z=k ~ N(μₖ, Σₖ)<br/>generation: sample z then x | z · discovery: given x, infer p(z|x) — the soft cluster</small>"]
+    G --> ML["<b>§4 fit θ by maximum likelihood</b> · log p(X;θ) = Σᵢ log Σ_z p(xᵢ,z;θ)<br/><small>log OF a sum — no closed form, intractable</small>"]
+    ML --> DEC["<b>§5–6 introduce q(z), decompose exactly</b> · ln p(X;θ) = L(q,θ) + KL(q(z) ‖ p(z|x))<br/><small>KL always ≥ 0 ⇒ L(q,θ) is always a lower bound (the ELBO)</small>"]
+    DEC --> EM["<b>§7 EM — two provably non-decreasing moves</b><br/><small>E-step: q(z) = p(z|x;θ) → KL → 0 → bound = true likelihood<br/>M-step: maximise L(q,θ) over θ, q fixed → likelihood can't drop<br/>'mountain-climbing': reshape the bound to touch the peak (E), then climb the bound (M)</small>"]
+    EM --> CF["<b>§8 for GMMs, closed form</b><br/><small>E-step → γ(z_nk), the responsibility: soft P(point n ∈ cluster k)<br/>M-step → μₖ, Σₖ, πₖ re-estimated as responsibility-weighted averages</small>"]
+    CF --> PLSA["<b>§9 PLSA</b> — the same derivation on discrete text (Gaussian → Multinomial; γ → per-word topic responsibility)"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DEC,EM k
 ```
 
 ---
@@ -894,51 +847,20 @@ notation.
 
 ## Putting it together
 
-```
-   Part 1: K-Means/Hierarchical/DBSCAN — all HARD assignments
-   "a purchase fits multiple segments... border points have genuine uncertainty"
-                            │
-                            ▼
-   §1  GMM: p(x) = Σ_k π_k N(x;μ_k,Σ_k)   — universal density estimator
-   §2      = latent-variable model: z~Categorical(π), x|z=k ~ N(μ_k,Σ_k)
-            GENERATION: sample z, then x|z         DISCOVERY: infer p(z|x)
-                            │
-                            ▼
-   §3  MLE: maximize log p(X;θ) = Σ_i log p(x_i;θ)
-   §4      = Σ_i log Σ_z p(x_i,z;θ)   ← log OF a sum. INTRACTABLE — no closed form.
-                            │
-                            ▼
-   §5  Introduce q(z). DERIVE the exact decomposition:
-       ┌────────────────────────────────────────────────────────┐
-       │ ln p(x;θ) = L(q,θ) + KL(q(z)‖p(z|x;θ))                 │
-       │             ELBO      always ≥ 0 (Prereq 2)             │
-       └────────────────────────────────────────────────────────┘
-       ⇒ L(q,θ) ≤ ln p(x;θ)  for ANY q  — "mountain / lower-bound curve" picture
-                            │
-                            ▼
-   §6  E-STEP: minimize the KL gap  ⇒  q(z) = p(z|x;θ)  (the TRUE posterior)
-              for GMM: γ(z_k) = π_k N(x;θ_k) / Σ_j π_j N(x;θ_j)   [Bayes' rule]
-              ⇒ bound becomes EXACTLY TIGHT at current θ
-
-       M-STEP: maximize L(q,θ) over θ, q FIXED from E-step
-              for GMM: μ_k, Σ_k, π_k = RESPONSIBILITY-WEIGHTED averages
-              ⇒ chain:  ln p(x;θ) = L(q,θ) ≤ L(q,θ') ≤ ln p(x;θ')
-              ⇒ TRUE LIKELIHOOD NEVER DECREASES                          proven §6.2
-                            │
-                            ▼
-   §7  "Mountain-climbing": E = reshape bound to touch peak at θ
-                             M = climb the (now-fixed) bound to ITS peak → new θ
-       live demo: responsibilities as literal COLOR BLENDS on boundary points
-                            │
-              ┌─────────────┴─────────────┐
-              ▼                           ▼
-   §8  PLSA: IDENTICAL derivation,   §9  Summary: "can converge to a LOCAL optimum"
-       Gaussian → Multinomial            — same structural caveat as K-Means §5.2
-       γ(z_k) = per-WORD topic       "for CONTINUOUS z, likelihood is completely
-       responsibility                 intractable" → VAE = EM's ELBO, generalized
-       shared K topics, but each     to continuous z via a LEARNED approximate
-       document has its OWN p(z|d)   posterior + gradient descent instead of exact
-                                      alternating E/M steps
+```mermaid
+flowchart TD
+    P1["<b>Part 1</b> — K-Means / Hierarchical / DBSCAN, all HARD assignments<br/><small>a purchase fits multiple segments; border points have genuine uncertainty</small>"]
+    P1 --> G["<b>§1–2 GMM</b> · p(x) = Σₖ πₖ N(x; μₖ, Σₖ) — universal density estimator<br/><small>= latent-variable model: z ~ Categorical(π), x | z=k ~ N(μₖ, Σₖ) · generation: sample z then x | z · discovery: infer p(z|x)</small>"]
+    G --> ML["<b>§3–4 MLE</b> · maximise log p(X;θ) = Σᵢ log Σ_z p(xᵢ,z;θ)<br/><small>log OF a sum — intractable, no closed form</small>"]
+    ML --> DEC["<b>§5 introduce q(z), derive the exact decomposition</b><br/><small>ln p(x;θ) = L(q,θ) + KL(q(z) ‖ p(z|x;θ)) · L is the ELBO, KL always ≥ 0 ⇒ L(q,θ) ≤ ln p(x;θ) for any q</small>"]
+    DEC --> E["<b>§6 E-step</b> — minimise the KL gap ⇒ q(z) = p(z|x;θ), the true posterior<br/><small>for GMM: γ(z_k) = πₖ N(x;θₖ) / Σⱼ πⱼ N(x;θⱼ) [Bayes] ⇒ bound becomes exactly tight at current θ</small>"]
+    DEC --> M["<b>§6 M-step</b> — maximise L(q,θ) over θ, q fixed<br/><small>for GMM: μₖ, Σₖ, πₖ = responsibility-weighted averages ⇒ ln p(x;θ) = L(q,θ) ≤ L(q,θ') ≤ ln p(x;θ') ⇒ true likelihood never decreases (§6.2)</small>"]
+    E --> CLIMB["<b>§7 mountain-climbing</b> — E reshapes the bound to touch the peak; M climbs the fixed bound to its peak → new θ<br/><small>live demo: responsibilities as literal colour blends on boundary points</small>"]
+    M --> CLIMB
+    CLIMB --> PLSA["<b>§8 PLSA</b> — identical derivation, Gaussian → Multinomial, γ → per-word topic responsibility"]
+    CLIMB --> SUM["<b>§9 summary</b> — can converge to a local optimum (same caveat as K-Means)<br/><small>for continuous z the likelihood is completely intractable → VAE = EM's ELBO, generalised to continuous z via a learned approximate posterior + gradient descent</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DEC,E,M k
 ```
 
 ### Walking the diagram

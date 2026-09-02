@@ -62,16 +62,14 @@ notebook — runs for the remainder of the hour.
 The three algorithms are not three unrelated recipes — they are three different formalisations of
 "what is a cluster", and the deck's own **Four Families of Clustering** slide (§4) is the map:
 
-```
-"What is a cluster?"
-        │
-        ├─ a POINT everything is close to  ──────────▶  K-MEANS (centroid-based)     §5–§15
-        │
-        ├─ a set built by repeatedly MERGING
-        │   the two nearest things  ─────────────────▶  HIERARCHICAL (connectivity)  §16–§21
-        │
-        └─ a DENSE REGION separated from other
-            dense regions by sparse space  ───────────▶  DBSCAN (density-based)      §22–§27
+```mermaid
+flowchart TD
+    Q["<b>What is a cluster?</b>"]
+    Q -->|"a point everything is close to"| KM["<b>K-Means</b> (centroid-based) · §5–15"]
+    Q -->|"a set built by repeatedly merging the two nearest things"| HC["<b>Hierarchical</b> (connectivity) · §16–21"]
+    Q -->|"a dense region separated from other dense regions by sparse space"| DB["<b>DBSCAN</b> (density-based) · §22–27"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class Q ask
 ```
 
 *(A fourth family — clusters as **Gaussian distributions**, distribution-based — is named on the same
@@ -256,39 +254,20 @@ they just disagree about what "simplest" and "explains" mean.
 question: what are the groups?"* [slide 17] — and the deck's own **Four Families** slide is the map of
 how three genuinely different geometric commitments produce three genuinely different algorithms:
 
-```
-                    "What is a cluster?" — every algorithm answers differently        §4
-                                        │
-        ┌───────────────────────────────┼───────────────────────────────┐
-        ▼                               ▼                               ▼
-   CENTROID-BASED              CONNECTIVITY-BASED               DENSITY-BASED
-   "A cluster = the set        "A cluster = built by            "A cluster = a dense
-    of points closest to        repeatedly merging the           region separated from
-    ONE representative           two nearest clusters"            other dense regions"
-    point"                              │                               │
-        │                               ▼                               ▼
-        ▼                        HIERARCHICAL                       DBSCAN
-    K-MEANS                      §16 dendrogram                 §22 core/border/noise
-  §5 the algorithm               §17 linkage methods             §23 the algorithm
-  §7 the objective J             §20 complexity O(n³)            §25 choosing ε, MinPts
-  §9 K-Means++ init              §21 fails: still assumes         §26 strengths/limits
-  §11 elbow method                  compact clusters
-  §12 where it fails
-  §13 evaluation metrics
-        │                               │                               │
-        └───────────────────────────────┴───────────────────────────────┘
-                                        │
-                          ALL THREE PRODUCE HARD ASSIGNMENTS           §27
-                          "What's still missing?" → soft membership
-                          → Gaussian Mixture Models (Part 2)
-                                        │
-        ══════════════════════════════════════════════════════════════════
-                     EVALUATING ANY OF THEM WITHOUT LABELS               §28
-        intrinsic (silhouette, CH, DB) · extrinsic (ARI, NMI) · which for which
-
-        ══════════════════════════════════════════════════════════════════
-              LIVE DEMO: 901 real digit images, K-Means, PCA           §29–§34
-        93.8% purity but silhouette = 0.187 — the paradox, resolved
+```mermaid
+flowchart TD
+    Q["<b>What is a cluster?</b> — every algorithm answers differently · §4"]
+    Q --> C["<b>Centroid-based</b><br/><small>the set of points closest to one representative point</small>"]
+    Q --> N["<b>Connectivity-based</b><br/><small>built by repeatedly merging the two nearest clusters</small>"]
+    Q --> D["<b>Density-based</b><br/><small>a dense region separated from other dense regions</small>"]
+    C --> KM["<b>K-Means</b><br/><small>§5 algorithm · §7 objective J · §9 K-Means++ · §11 elbow · §12 where it fails · §13 metrics</small>"]
+    N --> HC["<b>Hierarchical</b><br/><small>§16 dendrogram · §17 linkage · §20 O(n³) · §21 still assumes compact clusters</small>"]
+    D --> DB["<b>DBSCAN</b><br/><small>§22 core / border / noise · §23 algorithm · §25 choosing ε, MinPts · §26 strengths / limits</small>"]
+    KM & HC & DB --> HARD["<b>all three produce HARD assignments</b> · §27<br/><small>what's missing? soft membership → Gaussian Mixture Models (Part 2)</small>"]
+    HARD --> EVAL["<b>§28 evaluating without labels</b> — intrinsic (silhouette, CH, DB) · extrinsic (ARI, NMI)"]
+    EVAL --> DEMO["<b>§29–34 live demo</b> — 901 digit images, K-Means, PCA · 93.8% purity but silhouette 0.187 (the paradox, resolved)"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class HARD k
 ```
 
 **And the deck earns the abstraction with three concrete Amazon use cases before it ever writes an
@@ -1733,61 +1712,21 @@ confirming the table's own story in one glance.
 
 ## Putting it together
 
-```
-                    "What is the SIMPLEST EXPLANATION of this data?"                    §Big picture
-                                        │
-        ┌───────────────────────────────┴────────────────────────────────┐
-        ▼                                                                ▼
-  GEOMETRIC ANSWER (today)                                    PROBABILISTIC/GENERATIVE
-  "What are the natural groups?"                              (GMM, LDA, VAE, GAN — later parts)
-        │
-        │   distance itself is a MODELING CHOICE                                        §1–§3
-        │   Lp norms (diamond/circle/square) · Mahalanobis = Euclidean after whitening
-        │   Jaccard (sets) · DTW (time series)
-        │
-        ▼
-  "What is a cluster?" — every algorithm answers differently                            §4
-        │
-   ┌────┴─────────────────┬─────────────────────────┐
-   ▼                       ▼                         ▼
- CENTROID              CONNECTIVITY               DENSITY
- "one center point"    "built by merging"          "dense region,
-   │                     │                          sparse gaps"
-   ▼                     ▼                            ▼
- K-MEANS               HIERARCHICAL                 DBSCAN
- §5 J = Σ‖x-μ‖²         §12 O(n³), bottom-up          §17-19 core/border/noise
- §5.2 converges to      §13 dendrogram: ONE run       §19 the algorithm
-   a LOCAL min only        → ALL values of K          §21 k-distance plot → eps
-   (proof: both steps    §14 linkage: Ward = the       §22-23 strengths/limits
-   only ever DECREASE J)    K-Means objective,          "no predict() — 
- §7 elbow: J always        applied incrementally         TRANSDUCTIVE"
-   decreases, so pick    §16 greedy + IRREVERSIBLE
-   the BEND not the min     merges — same local-
- §8 fails: non-spherical,   optimum caveat as K-Means
-   varying density,
-   outliers
- §9 K-Means++: d² -
-   weighted seeding
-   fixes "2 seeds, 1
-   cluster"
-        │                     │                         │
-        └─────────────────────┴─────────────────────────┘
-                                │
-              ALL THREE PRODUCE HARD ASSIGNMENTS ONLY                                   §24
-              "a purchase fits multiple segments" → Next: GMM (Part 2)
-                                │
-        ════════════════════════════════════════════════════════════
-                  EVALUATING ANY OF THEM, WITH NO LABELS                                §25-27
-        intrinsic: distortion · SILHOUETTE (a,b) · Calinski-Harabasz
-        extrinsic: ARI (chance-corrected) · NMI (= mutual information, reused)
-        "no single metric is universal — match metric to algorithm"
-                                │
-        ════════════════════════════════════════════════════════════
-              LIVE DEMO: 901 real digits, K-Means, PCA                                  §28-30
-        93.8% purity/accuracy  +  silhouette = 0.187  ← NOT a contradiction
-        a(i)=8.06, b(i)=9.87, gap=1.81 — "correct but not compact"
-        PCA to d=10: same 93.5% accuracy, silhouette jumps to 0.326
-        "silhouette in high-D is misleading — PCA/UMAP first"
+```mermaid
+flowchart TD
+    ROOT["<b>What is the simplest explanation of this data?</b>"]
+    ROOT --> GEO["<b>Geometric answer</b> (today) — what are the natural groups?"]
+    ROOT --> PROB["<b>Probabilistic / generative</b> — GMM, LDA, VAE, GAN (later parts)"]
+    GEO --> DIST["<b>§1–3 distance is a modelling choice</b><br/><small>Lp norms (diamond / circle / square) · Mahalanobis = Euclidean after whitening · Jaccard (sets) · DTW (time series)</small>"]
+    DIST --> Q["<b>§4 What is a cluster?</b> — every algorithm answers differently"]
+    Q --> KM["<b>K-Means</b> — centroid<br/><small>§5 J = Σ‖x−μ‖² · converges to a local min only (both steps only decrease J) · §7 elbow: pick the bend · §8 fails on non-spherical / varying density / outliers · §9 K-Means++ d²-weighted seeding</small>"]
+    Q --> HC["<b>Hierarchical</b> — connectivity<br/><small>§12 O(n³), bottom-up · §13 dendrogram: one run → all K · §14 Ward = the K-Means objective, applied incrementally · §16 greedy + irreversible merges</small>"]
+    Q --> DB["<b>DBSCAN</b> — density<br/><small>§17–19 core / border / noise + the algorithm · §21 k-distance plot → ε · §22–23 strengths / limits · no predict() — transductive</small>"]
+    KM & HC & DB --> HARD["<b>§24 all three produce HARD assignments only</b><br/><small>a purchase fits multiple segments → next: GMM (Part 2)</small>"]
+    HARD --> EVAL["<b>§25–27 evaluating with no labels</b><br/><small>intrinsic: distortion · silhouette(a,b) · Calinski–Harabasz · extrinsic: ARI (chance-corrected) · NMI · match metric to algorithm</small>"]
+    EVAL --> DEMO["<b>§28–30 live demo</b> — 901 real digits<br/><small>93.8% accuracy + silhouette 0.187 (not a contradiction: a=8.06, b=9.87, gap 1.81 — 'correct but not compact') · PCA to d=10 → silhouette 0.326 · silhouette in high-D is misleading, PCA / UMAP first</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class HARD k
 ```
 
 ### Walking the diagram

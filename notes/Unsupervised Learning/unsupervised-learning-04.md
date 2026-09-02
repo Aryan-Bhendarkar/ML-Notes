@@ -55,23 +55,16 @@ the verified 52→22 figures.)*
 This lecture has a clean two-part structure, but the real shape is a *spiral* — Part B revisits
 Part A's machinery from a more general perspective:
 
-```
-Part 3's VAE:    x → z in ONE step, learn encoder + decoder
-                  │
-                  ▼   "What if we break that one step into T tiny steps?"
-                  │
-Part A §1-3:     Diffusion = hierarchical VAE with FIXED forward (add noise T times)
-                  │
-Part A §4-8:     Learn the REVERSE: denoise T times, via ELBO → denoising matching → score
-                  │
-                  ▼   "The forward process is arbitrary — why stick to adding Gaussian noise?"
-                  │
-Part B §10-12:   Flow Matching = choose ANY smooth path from noise to data
-                  │
-Part B §13-14:   Solve the ODE along that path → deterministic generation in fewer steps
-                  │
-                  ▼
-Part B §15:      Diffusion is a SPECIAL CASE of Flow Matching
+```mermaid
+flowchart TD
+    V["<b>Part 3's VAE</b> — x → z in one step, learn encoder + decoder"]
+    V -->|"break that one step into T tiny steps?"| A13["<b>§A1–3</b> Diffusion = a hierarchical VAE with a FIXED forward process (add noise T times)"]
+    A13 --> A48["<b>§A4–8</b> learn the reverse: denoise T times, via ELBO → denoising matching → score"]
+    A48 -->|"the forward process is arbitrary — why only Gaussian noise?"| B["<b>§B10–12</b> Flow Matching = choose ANY smooth path from noise to data"]
+    B --> B13["<b>§B13–14</b> solve the ODE along that path → deterministic generation in fewer steps"]
+    B13 --> B15["<b>§B15</b> diffusion is a special case of flow matching"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class A13,B k
 ```
 
 If you are revising under time pressure: **Part A's score function equivalence (§6, §8) and
@@ -761,34 +754,21 @@ score changes at each step (different noise levels).
 
 ## 9. Putting Part A together
 
-```
-                    THE DIFFUSION MODEL PIPELINE
-                    
-    TRAINING (one-time):
-    ┌─────────────────────────────────────────────────────┐
-    │ Dataset: {x_0}                                      │
-    │                                                      │
-    │ For each training step:                              │
-    │   1. Sample x_0 from dataset                        │
-    │   2. Sample t ~ Uniform({1,...,T})                   │
-    │   3. Sample ε ~ N(0, I)                             │
-    │   4. Compute x_t = √ᾱ_t · x_0 + √(1-ᾱ_t) · ε    │
-    │   5. Loss = ‖ε - ε_θ(x_t, t)‖²                    │
-    │   6. Gradient step on θ                             │
-    └─────────────────────────────────────────────────────┘
-                              │
-                              │ θ converges
-                              ▼
-    GENERATION (per sample):
-    ┌─────────────────────────────────────────────────────┐
-    │ 1. Sample x_T ~ N(0, I)                            │
-    │ 2. For t = T down to 1:                             │
-    │      ε̂ = ε_θ(x_t, t)                              │
-    │      x_{t-1} = denoise(x_t, ε̂, t)                 │
-    │ 3. Return x_0                                       │
-    │                                                      │
-    │ Cost: T forward passes through ε_θ                  │
-    └─────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph TR["Training — one-time"]
+      direction TB
+      t1["sample x₀ from the dataset"] --> t2["sample t ~ Uniform({1…T})"] --> t3["sample ε ~ N(0, I)"] --> t4["x_t = √ᾱ_t · x₀ + √(1−ᾱ_t) · ε"] --> t5["loss = ‖ε − ε_θ(x_t, t)‖²"] --> t6["gradient step on θ"]
+      t6 -.->|"next step"| t1
+    end
+    subgraph GEN["Generation — per sample"]
+      direction TB
+      g1["sample x_T ~ N(0, I)"] --> g2["for t = T … 1:<br/>ε̂ = ε_θ(x_t, t)<br/>x_{t−1} = denoise(x_t, ε̂, t)"] --> g3["return x₀"]
+    end
+    TR -->|"θ converges"| GEN
+    GEN -.-> COST["cost: T forward passes through ε_θ"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TR,GEN k
 ```
 
 **Key properties of diffusion models:**
@@ -1184,56 +1164,33 @@ up:
 
 ## 15. Putting Part B together: the complete picture
 
-```
-                    THE FLOW MATCHING PIPELINE
-                    
-    TRAINING (one-time):
-    ┌─────────────────────────────────────────────────────┐
-    │ Dataset: {x_1}                                      │
-    │                                                      │
-    │ For each training step:                              │
-    │   1. Sample x_1 from dataset                        │
-    │   2. Sample x_0 ~ N(0, I)                           │
-    │   3. Sample t ~ Uniform([0, 1])                     │
-    │   4. Compute x_t = (1-t)·x_0 + t·x_1               │
-    │   5. Loss = ‖v_θ(x_t, t) - (x_1 - x_0)‖²         │
-    │   6. Gradient step on θ                             │
-    └─────────────────────────────────────────────────────┘
-                              │
-                              │ θ converges
-                              ▼
-    GENERATION (per sample):
-    ┌─────────────────────────────────────────────────────┐
-    │ 1. Sample x_0 ~ N(0, I)                            │
-    │ 2. Δt = 1/N  (e.g., N = 20 steps)                  │
-    │ 3. For i = 0 to N-1:                                │
-    │      t = i/N                                        │
-    │      x = x + v_θ(x, t) · Δt                        │
-    │ 4. Return x                                         │
-    │                                                      │
-    │ Cost: N forward passes through v_θ (N << T)         │
-    └─────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph TR["Training — one-time"]
+      direction TB
+      t1["sample x₁ from the dataset"] --> t2["sample x₀ ~ N(0, I)"] --> t3["sample t ~ Uniform([0, 1])"] --> t4["x_t = (1−t)·x₀ + t·x₁"] --> t5["loss = ‖v_θ(x_t, t) − (x₁ − x₀)‖²"] --> t6["gradient step on θ"]
+      t6 -.->|"next step"| t1
+    end
+    subgraph GEN["Generation — per sample"]
+      direction TB
+      g1["sample x₀ ~ N(0, I)"] --> g2["Δt = 1/N  (e.g. N = 20)"] --> g3["for i = 0 … N−1:<br/>t = i/N<br/>x = x + v_θ(x, t) · Δt"] --> g4["return x"]
+    end
+    TR -->|"θ converges"| GEN
+    GEN -.-> COST["cost: N forward passes through v_θ  (N ≪ T)"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TR,GEN k
 ```
 
 ### How the whole module connects
 
-```
-K-Means (Part 1)      →  hard clusters, assignment-based
-        │
-        ▼
-GMM/EM (Part 2)       →  soft clusters, probabilistic, ELBO
-        │
-        ▼
-VAE (Part 3 §B)       →  continuous latent, neural ELBO, reparameterization
-        │
-        ▼
-GAN (Part 3 §C)       →  implicit model, adversarial training, no density
-        │
-        ▼
-Diffusion (Part A)     →  hierarchical VAE, fixed forward, learned reverse, denoising = score
-        │
-        ▼
-Flow Matching (Part B) →  generalise the path, ODE-based, fewer steps, diffusion is a special case
+```mermaid
+flowchart TD
+    KM["<b>K-Means</b> (Part 1) — hard clusters, assignment-based"]
+    KM --> GMM["<b>GMM / EM</b> (Part 2) — soft clusters, probabilistic, ELBO"]
+    GMM --> VAE["<b>VAE</b> (Part 3 §B) — continuous latent, neural ELBO, reparameterisation"]
+    VAE --> GAN["<b>GAN</b> (Part 3 §C) — implicit model, adversarial training, no density"]
+    GAN --> DIF["<b>Diffusion</b> (Part A) — hierarchical VAE, fixed forward, learned reverse, denoising = score"]
+    DIF --> FM["<b>Flow Matching</b> (Part B) — generalise the path, ODE-based, fewer steps; diffusion is a special case"]
 ```
 
 Every step generalises the previous one. The trajectory of the entire unsupervised learning

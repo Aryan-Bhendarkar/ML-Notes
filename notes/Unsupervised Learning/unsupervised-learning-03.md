@@ -49,23 +49,14 @@ confirming this is the deck's actual final content slide, not a truncated captur
 This lecture has a genuinely elegant three-act shape, and it is worth seeing the whole shape before
 diving into any one act:
 
-```
-GMM/EM (Part 2) — discrete latent z, EXACT E-step via Bayes' rule, EXACT M-step
-        │
-        ▼   what if z is continuous? (Part 2 §9's own closing question)
-        │
-§A  "Same data, increasingly expressive p(x): K-Means → GMM → Neural Generative Model"
-        │
-        ▼
-§B  VAE: approximate the now-intractable posterior with a NEURAL NETWORK q(z|x;φ)
-        maximize the SAME ELBO, via reparameterization + gradient descent
-        (EXPLICIT density: you get a lower bound on log p(x), which you can score)
-        │
-        ▼   VAEs are honest about the bound. What if you give up on p(x) entirely?
-        │
-§C  GAN: an IMPLICIT generative model — sample from p(x) without ever writing it down
-        train a DISCRIMINATOR to estimate a divergence; the GENERATOR minimizes it
-        (NO explicit density: you cannot score a sample, only generate one)
+```mermaid
+flowchart TD
+    EM["<b>GMM / EM (Part 2)</b> — discrete latent z · exact E-step via Bayes, exact M-step"]
+    EM -->|"what if z is continuous?"| SA["<b>§A same data, increasingly expressive p(x)</b> · K-Means → GMM → neural generative model"]
+    SA --> VAE["<b>§B VAE — the honest route</b><br/><small>approximate the intractable posterior with a network q(z|x;φ) · maximise the same ELBO via reparameterisation + gradient descent<br/>explicit density: you get a lower bound on log p(x) you can score</small>"]
+    VAE -->|"give up on p(x) entirely?"| GAN["<b>§C GAN — the implicit route</b><br/><small>sample from p(x) without ever writing it down · a discriminator estimates a divergence, the generator minimises it<br/>no explicit density: you cannot score a sample, only generate one</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class VAE,GAN k
 ```
 
 If you are revising under time pressure: **§B's VAE derivation and §C's density-ratio-via-classifier
@@ -196,47 +187,24 @@ gradients, mode collapse) that have no analogue in either GMM/EM or VAE training
 
 ### The whole lecture in one diagram
 
-```
-   Part 2's closing limitation: "for continuous z, the likelihood is completely intractable"
-                                        │
-                                        ▼
-   §1-2  Same data, THREE increasingly expressive p(x) approximations:
-         K-Means (Voronoi)  →  GMM (K learnable Gaussians)  →  Neural Generative Model
-                                        │
-              ┌─────────────────────────┴─────────────────────────┐
-              ▼                                                   ▼
-   ┌─────────────────────────────────┐               ┌─────────────────────────────────┐
-   │ §B  VAE — the HONEST route      │               │ §C  GAN — the IMPLICIT route     │
-   │                                  │               │                                   │
-   │ §4  SAME ELBO logic as GMM/EM,  │               │ §10 "implicit" — sample from p(x)│
-   │     now via Jensen directly:    │               │     WITHOUT ever writing it down  │
-   │     log p(x;θ) ≥ E_q[log p(x,z)/│               │ §10 transform random variables:  │
-   │              q(z|x)]  =: ELBO   │               │     z ~ q(z), x = G_θ(z)          │
-   │ §5  q(z|x)=N(μ_φ(x),Σ_φ(x))     │               │                                   │
-   │     ENCODER (approximate        │               │ §11 DENSITY RATIO via a binary   │
-   │     posterior, NOT exact)       │               │     CLASSIFIER h(x), using only  │
-   │     p(x|z) = DECODER            │               │     samples — no p(x) needed:    │
-   │ §6  REPARAMETERIZATION:         │               │     p(x)/p_θ(x) = h(x)/(1-h(x))  │
-   │     z = μ + Σ^½ε, ε~N(0,I)      │               │ §12 optimal classifier computes  │
-   │     → makes sampling            │               │     JENSEN-SHANNON DIVERGENCE     │
-   │       DIFFERENTIABLE            │               │     ⇒ GAN objective = min-max JSD │
-   │ §7  reconstruction + KL(q‖prior)│               │ §13 Discriminator estimates,      │
-   │     = tension between two       │               │     Generator minimizes — a GAME  │
-   │       competing objectives      │               │ §14 vanishing gradients: good     │
-   │ §8  POSTERIOR COLLAPSE:         │               │     discriminator ⇒ ~0 gradient   │
-   │     too-powerful decoder        │               │     for generator. Non-saturating │
-   │     ⇒ encoder becomes           │               │     loss as the practical fix.    │
-   │       independent of x          │               │ §15 MODE COLLAPSE: generator      │
-   │ §9  strengths: explicit latent, │               │     latches onto ONE mode         │
-   │     scoreable, stable training  │               │ §16 WGAN: Wasserstein distance —  │
-   │     weaknesses: blurry samples  │               │     varies smoothly even with NO  │
-   │ modern role: compress for       │               │     overlap ⇒ always useful grad  │
-   │ LATENT DIFFUSION (Stable        │               │ §17 DCGAN: fixes the ARCHITECTURE │
-   │ Diffusion), not standalone      │               │     (strided convs, BatchNorm)    │
-   │ sampling                        │               │ modern role: style transfer,      │
-   └─────────────────────────────────┘               │ super-resolution; displaced by    │
-                                                       │ diffusion for raw sampling        │
-                                                       └─────────────────────────────────┘
+```mermaid
+flowchart TD
+    P2["<b>Part 2's closing limitation</b> — for continuous z, the likelihood is completely intractable"]
+    P2 --> SA["<b>§1–2 same data, three increasingly expressive p(x)</b><br/>K-Means (Voronoi) → GMM (K learnable Gaussians) → neural generative model"]
+    SA --> VAE["<b>§B VAE — the honest route</b>"]
+    SA --> GAN["<b>§C GAN — the implicit route</b>"]
+    VAE --> V1["<b>§4</b> same ELBO logic as GMM/EM, now via Jensen: log p(x;θ) ≥ E_q[log p(x,z)/q(z|x)]"]
+    V1 --> V2["<b>§5</b> q(z|x) = N(μ_φ(x), Σ_φ(x)) — encoder (approximate posterior, not exact) · p(x|z) = decoder"]
+    V2 --> V3["<b>§6</b> reparameterisation z = μ + Σ^½ε makes sampling differentiable"]
+    V3 --> V4["<b>§7–8</b> reconstruction vs KL(q ‖ prior): a genuine tension · posterior collapse: too-powerful decoder ⇒ encoder ignores x"]
+    V4 --> V5["<b>§9</b> ✔ explicit, scoreable, stable · ✗ blurry samples · modern role: compress for latent diffusion (Stable Diffusion)"]
+    GAN --> G1["<b>§10–11</b> implicit: z ~ q(z), x = G_θ(z) · density ratio via a binary classifier h(x): p(x)/p_θ(x) = h(x)/(1−h(x))"]
+    G1 --> G2["<b>§12–13</b> the optimal classifier computes Jensen–Shannon divergence ⇒ GAN objective = min-max JSD · discriminator estimates, generator minimises — a game"]
+    G2 --> G3["<b>§14</b> vanishing gradients: a good discriminator ⇒ ~0 gradient for the generator · non-saturating loss is the practical fix"]
+    G3 --> G4["<b>§15–17</b> mode collapse: generator latches onto one mode · WGAN: Wasserstein distance varies smoothly even with no overlap · DCGAN fixes the architecture"]
+    G4 --> G5["modern role: style transfer, super-resolution; displaced by diffusion for raw sampling"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class VAE,GAN k
 ```
 
 ---
@@ -1106,47 +1074,14 @@ converge reliably in practice, as opposed to merely being mathematically well-po
 
 ## Putting it together
 
-```
-   Part 2 closing: "for continuous z, the likelihood is completely intractable"
-                                        │
-                                        ▼
-   §1  K-Means (Voronoi) → GMM (K learnable Gaussians) → Neural Generative Model
-       "same data, increasingly expressive approximations of p(X)"
-                                        │
-              ┌──────────────────────────┴──────────────────────────┐
-              ▼                                                     ▼
-   ┌─────────────────────────────────────┐         ┌─────────────────────────────────────┐
-   │  VAE — the EXPLICIT route            │         │  GAN — the IMPLICIT route             │
-   │                                       │         │                                        │
-   │  §4  SAME marginalization as GMM,    │         │  §10 "learn by COMPARISON" — no p(x)  │
-   │      now ∫ instead of Σ:             │         │      ever written down. Prescribed    │
-   │      log p(x;θ) ≥ E_q[log p(x,z)/q]  │         │      (has a density curve) vs implicit│
-   │      via JENSEN's inequality         │         │      (only sample clouds)             │
-   │  §5  = reconstruction − D_KL[q‖prior]│         │  §11 🧪 DERIVE: a binary classifier    │
-   │      ENCODER q(z|x)=N(μ_φ,Σ_φ)       │         │      trained with ORDINARY BCE secretly│
-   │      DECODER p(x|z)                  │         │      encodes p(x)/p_θ(x) = h(x)/(1-h) │
-   │  §6  🧪 REPARAMETERIZATION:          │         │      via Bayes' rule run BACKWARDS    │
-   │      z = μ+Σ^½ε, ε~N(0,I)             │         │  §12 optimal classifier ⇒ JSD         │
-   │      necessary because gradients      │         │      (symmetric, finite even w/       │
-   │      cannot flow through SAMPLING     │         │      disjoint support — unlike KL)    │
-   │  §7  reconstruction vs KL: a genuine  │         │  §13 min_θ max_φ JSD — the ADVERSARIAL │
-   │      TENSION between two objectives   │         │      GAME. Discriminator ESTIMATES,   │
-   │  §8  🧪 POSTERIOR COLLAPSE derived:   │         │      Generator MINIMIZES. NO single   │
-   │      too-powerful decoder ⇒ recon     │         │      loss that always goes down       │
-   │      term satisfied WITHOUT encoding  │         │  §14 🧪 VANISHING GRADIENTS derived   │
-   │      x ⇒ encoder collapses to prior   │         │      from the loss curve's actual     │
-   │  §9  strengths: explicit, scoreable,  │         │      SHAPE — non-saturating loss fix  │
-   │      STABLE training                  │         │  §15 🧪 MODE COLLAPSE derived: no term│
-   │      weaknesses: BLURRY (Gaussian     │         │      rewards COVERAGE, only per-sample│
-   │      likelihood's mean-averaging)     │         │      plausibility                     │
-   │  modern role: compresses for LATENT   │         │  §16 WGAN: Earth-Mover distance — a   │
-   │  DIFFUSION (Stable Diffusion)          │         │      smooth GRADIENT even w/ NO overlap│
-   └─────────────────────────────────────┘         │  §17 DCGAN: fixes the ARCHITECTURE    │
-                                                     │      (strided convs, BatchNorm)       │
-                                                     │  modern role: style transfer, super-  │
-                                                     │  res; displaced by diffusion for raw  │
-                                                     │  unconditional sampling                │
-                                                     └─────────────────────────────────────┘
+```mermaid
+flowchart TD
+    P2["<b>Part 2 closing</b> — for continuous z the likelihood is completely intractable"]
+    P2 --> SA["<b>§1</b> K-Means (Voronoi) → GMM (K learnable Gaussians) → neural generative model<br/><small>same data, increasingly expressive approximations of p(X)</small>"]
+    SA --> VAE["<b>VAE — the explicit route</b><br/><small>§4 same marginalisation as GMM, now ∫ not Σ, via Jensen: log p(x;θ) ≥ E_q[log p(x,z)/q]<br/>§5 = reconstruction − D_KL[q ‖ prior] · encoder q(z|x) = N(μ_φ, Σ_φ), decoder p(x|z)<br/>§6 reparameterisation z = μ + Σ^½ε — gradients can't flow through sampling<br/>§7 reconstruction vs KL: a genuine tension · §8 posterior collapse: too-powerful decoder ⇒ encoder collapses to prior<br/>§9 ✔ explicit, scoreable, stable · ✗ blurry (Gaussian likelihood mean-averaging) · modern role: compresses for latent diffusion</small>"]
+    SA --> GAN["<b>GAN — the implicit route</b><br/><small>§10 learn by comparison — no p(x) ever written down · prescribed (a density curve) vs implicit (only sample clouds)<br/>§11 a BCE-trained binary classifier secretly encodes p(x)/p_θ(x) = h(x)/(1−h) via Bayes run backwards<br/>§12 the optimal classifier ⇒ JSD (symmetric, finite even with disjoint support, unlike KL)<br/>§13 min_θ max_φ JSD — the adversarial game · discriminator estimates, generator minimises · no single loss that always decreases<br/>§14 vanishing gradients from the loss curve's shape — non-saturating fix · §15 mode collapse: nothing rewards coverage<br/>§16 WGAN: Earth-Mover distance, smooth gradient even with no overlap · §17 DCGAN fixes the architecture<br/>modern role: style transfer, super-res; displaced by diffusion for raw unconditional sampling</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class VAE,GAN k
 ```
 
 ### Walking the diagram
