@@ -106,26 +106,14 @@ the fix that dominates the field from 2013 onward: **stop hand-designing the vec
 from data instead**, using the assumption that words appearing in similar contexts must mean
 similar things.
 
-```
-Raw text
-   │
-   ▼
-[Part 1] Preprocessing ── tokenize → lowercase → stem/lemmatize → remove stopwords
-   │
-   ▼
-[Part 2] Discrete representations ── One-Hot → Bag-of-Words → TF-IDF → N-grams
-   │            (sparse, |V| dimensions, no notion of similarity)
-   ▼
-[Part 3] Why discrete fails ── 7 named failure modes, all downstream of "no similarity"
-   │
-   ▼
-[Part 4] Distributed representations ── Word2Vec: Skip-Gram & CBOW, negative sampling
-   │            (dense, ~100-300 dimensions, cosine similarity actually means something)
-   ▼
-[Part 5] GloVe & FastText ── global co-occurrence statistics, subword robustness to OOV
-   │
-   ▼
-Modern era: contextual embeddings (ELMo/BERT/GPT) — not covered here, named in the closing timeline
+```mermaid
+flowchart TD
+    R["raw text"] --> P1["<b>Part 1 · Preprocessing</b><br/><small>tokenize → lowercase → stem / lemmatize → remove stopwords</small>"]
+    P1 --> P2["<b>Part 2 · Discrete representations</b><br/><small>one-hot → bag-of-words → TF-IDF → n-grams · sparse, |V| dims, no notion of similarity</small>"]
+    P2 --> P3["<b>Part 3 · Why discrete fails</b><br/><small>7 named failure modes, all downstream of 'no similarity'</small>"]
+    P3 --> P4["<b>Part 4 · Distributed representations</b><br/><small>Word2Vec: Skip-Gram & CBOW, negative sampling · dense, ~100–300 dims, cosine similarity actually means something</small>"]
+    P4 --> P5["<b>Part 5 · GloVe & FastText</b><br/><small>global co-occurrence statistics · subword robustness to OOV</small>"]
+    P5 --> M["<b>Modern era</b> — contextual embeddings (ELMo / BERT / GPT), named in the closing timeline"]
 ```
 
 Every later lecture in this course that touches text (sequence models, LLMs) assumes you already
@@ -264,20 +252,13 @@ The lecture runs an interactive demo on the sentence *"The universities and orga
 universally arguing about fishing policies"* [slide 34], and the pipeline stages compound in this
 order:
 
-```
-Raw Input   "The universities and organizations were universally arguing about fishing policies."
-   │  tokenize
-   ▼
-Tokenization   [The, universities, and, organizations, were, universally, arguing, about, fishing, policies, .]   — 11 tokens
-   │  lowercase
-   ▼
-Lowercasing    [the, universities, and, ...]                                                       — 11 tokens, "The"="the" now
-   │  strip punctuation
-   ▼
-Punctuation Removal   [the, universities, and, organizations, were, universally, arguing, about, fishing, policies]  — 10 tokens
-   │  drop function words
-   ▼
-Stop Word Removal   [universities, organizations, universally, arguing, fishing, policies]         — 6 content words remain
+```mermaid
+flowchart TD
+    R["<b>Raw input</b><br/>'The universities and organizations were universally arguing about fishing policies.'"]
+    R -->|tokenize| T["<b>Tokenization</b> — 11 tokens<br/><small>[The, universities, and, organizations, were, universally, arguing, about, fishing, policies, .]</small>"]
+    T -->|lowercase| L["<b>Lowercasing</b> — 11 tokens · 'The' = 'the' now"]
+    L -->|strip punctuation| P["<b>Punctuation removal</b> — 10 tokens"]
+    P -->|drop function words| S["<b>Stop-word removal</b> — 6 content words<br/><small>[universities, organizations, universally, arguing, fishing, policies]</small>"]
 ```
 
 > 💡 **Key insight — order matters, and each stage narrows what the next stage can see.** You must
@@ -570,19 +551,12 @@ Word2Vec is "two architectures for learning word vectors" [slide 82], both train
 networks on billions of words, both producing the *same kind* of artifact: an embedding matrix
 $W \in \mathbb{R}^{\lvert V\rvert \times d}$, one row per vocabulary word.
 
+```mermaid
+flowchart LR
+    IN["input word<br/>'sat'"] -->|"look up its row"| W["<b>embedding W</b> · |V| × d<br/><small>d = 300</small>"] -->|predict| CTX["context: 'the', 'cat', 'on', 'mat'"]
 ```
-   Input "sat"                    Embedding W (|V| × d)                Context
-   ┌──────────┐    lookup row     ┌──────────────────┐    predict    ┌────────┐
-   │  "sat"   │ ───────────────▶ │  d = 300 dims      │ ────────────▶ │  "the" │
-   └──────────┘                   └──────────────────┘                ├────────┤
-                                                                        │  "cat" │
-                                                                        ├────────┤
-                                                                        │  "on"  │
-                                                                        ├────────┤
-                                                                        │  "mat" │
-                                                                        └────────┘
-   Skip-gram: center word → predict context   [slide 82]
-```
+
+**Skip-gram**: the centre word predicts its context. (CBOW is the mirror image — the context predicts the centre word.)
 
 ### 6.1 Skip-Gram
 
@@ -965,33 +939,17 @@ The lecture closes Part 5 by placing everything just covered on a timeline [slid
 
 ## Putting it together
 
-```
-                         ┌─────────────────────────┐
-                         │  Distributional          │
-                         │  Hypothesis (Firth 1957) │
-                         │  "company it keeps"      │
-                         └────────────┬─────────────┘
-                                      │ theoretical basis for
-                     ┌────────────────┼────────────────┐
-                     ▼                ▼                ▼
-              ┌────────────┐  ┌──────────────┐  ┌──────────────┐
-              │  Word2Vec   │  │    GloVe      │  │  FastText     │
-              │  (2013)     │  │    (2014)     │  │  (2017)       │
-              │ local window│  │ global co-occ.│  │ char n-grams  │
-              │ prediction  │  │ + log-ratio   │  │ + prediction  │
-              │             │  │ least squares │  │               │
-              └──────┬──────┘  └───────┬───────┘  └───────┬───────┘
-                     │  both fix       │                  │  additionally fixes
-                     └── "no similarity"┘                  │  the OOV problem
-                          (failure #1, #3)                 │  (failure #7)
-                                                            ▼
-                                              ┌──────────────────────────┐
-                                              │ 2018+: contextual         │
-                                              │ embeddings (ELMo→BERT→GPT)│
-                                              │ fixes: one vector per     │
-                                              │ WORD → one vector per     │
-                                              │ word-IN-CONTEXT           │
-                                              └──────────────────────────┘
+```mermaid
+flowchart TD
+    DH["<b>Distributional hypothesis</b> (Firth, 1957)<br/><small>'a word is known by the company it keeps'</small>"]
+    DH --> W2V["<b>Word2Vec</b> (2013)<br/><small>local-window prediction</small>"]
+    DH --> GLV["<b>GloVe</b> (2014)<br/><small>global co-occurrence + log-ratio least squares</small>"]
+    DH --> FT["<b>FastText</b> (2017)<br/><small>character n-grams + prediction</small>"]
+    W2V -->|"both fix 'no similarity' (failures #1, #3)"| CTXE
+    GLV --> CTXE
+    FT -->|"additionally fixes the OOV problem (failure #7)"| CTXE["<b>2018+ · contextual embeddings</b> (ELMo → BERT → GPT)<br/><small>one vector per word → one vector per word-in-context</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DH,CTXE k
 ```
 
 Three threads run through this lecture:

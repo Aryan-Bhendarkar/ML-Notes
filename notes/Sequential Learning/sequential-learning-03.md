@@ -100,20 +100,11 @@ the correct word.
 This lecture closes the arc from tokens to a working, adaptable language model in three acts, and its
 own section titles make the arc explicit:
 
-```
-Part 1: Sub-word Tokenization
-   "How do we turn raw text into the integers a neural network can consume, without an impossibly
-    large vocabulary, and without falling apart on words we have never seen?"          [slide 4]
-   │
-   ▼
-Part 2: Transformer Architecture
-   "Follow one sentence as it turns into vectors, flows through attention, and predicts the next
-    word."                                                                              [slide 41]
-   │
-   ▼
-Part 3: Language Models
-   "Pre-train, generate, adapt: the three families (BERT, GPT, T5) and how we put them to work."
-                                                                                          [slide 97]
+```mermaid
+flowchart TD
+    P1["<b>Part 1 · Sub-word tokenization</b><br/><small>turn raw text into integers a network can consume — without an impossibly large vocabulary, and without falling apart on unseen words</small>"]
+    P1 --> P2["<b>Part 2 · Transformer architecture</b><br/><small>follow one sentence as it turns into vectors, flows through attention, and predicts the next word</small>"]
+    P2 --> P3["<b>Part 3 · Language models</b><br/><small>pre-train, generate, adapt — the three families (BERT, GPT, T5) and how we put them to work</small>"]
 ```
 
 Each act ends exactly where the next act's first sentence needs it to: tokenization produces the
@@ -303,11 +294,9 @@ IDs → Transformer`. This is the exact handoff into Part 2.
 learning happens, we split into pieces (tokens), and map each piece to an ID. That splitting step is
 tokenization."*
 
-```
-"The cat sat"
-tokenize →   The   cat   sat
-look up IDs →  1396  4327  2038
-embed →       [0.21, -0.05, ...], [...], [...]
+```mermaid
+flowchart LR
+    T["'The cat sat'"] -->|tokenize| TK["The · cat · sat"] -->|look up IDs| ID["1396 · 4327 · 2038"] -->|embed| EM["[0.21, −0.05, …] · […] · […]"]
 ```
 
 This is the literal continuation of Part 1's closing sentence — tokenization's output (integer IDs)
@@ -378,22 +367,15 @@ by BLOOM and MPT"* — not small print, and quoted verbatim above.
 > shortcut and apply LayerNorm ('Add & Norm'). Shape stays $n\times d$ the whole way, so blocks stack
 > cleanly."*
 
-```
-        output (n×d)
-             │
-        LayerNorm
-             │
-          (+) ◀── residual ──┐
-             │                │
-        Feed-Forward          │
-             │                │
-        LayerNorm             │
-             │                │
-          (+) ◀── residual ───┤
-             │                │
-      Multi-Head Attention ───┘
-             │
-        input x (n×d)
+```mermaid
+flowchart TD
+    X["input x · (n×d)"] --> MHA["Multi-Head Attention"]
+    X -->|residual| A1
+    MHA --> A1(("+")) --> LN1["LayerNorm"]
+    LN1 --> FF["Feed-Forward"]
+    LN1 -->|residual| A2
+    FF --> A2(("+")) --> LN2["LayerNorm"]
+    LN2 --> O["output · (n×d)"]
 ```
 
 - **Attention sub-layer** — lets every token gather information from the other tokens. This is where
@@ -544,25 +526,20 @@ block is just self-attention + feed-forward, with no mask and no cross-attention
 encodings; the decoder's masked and cross attention feed a final Linear and Softmax that give the
 next-word probabilities."*
 
-```
-     Nx Encoder                              Nx Decoder
-   ┌────────────────┐                    ┌────────────────────┐
-   │   Add & Norm     │                    │      Add & Norm      │
-   │   Feed Forward    │                    │     Feed Forward      │
-   │   Add & Norm     │      encoder       │      Add & Norm      │
-   │ Multi-Head Attn  │───output→ K,V ────▶│  Cross Multi-Head Attn │
-   └────────────────┘                    │      Add & Norm      │
-        │ + positional                    │  Masked Multi-Head Attn│
-   Input Embedding                        └────────────────────┘
-    "the cat sat"                              │ + positional
-                                          Output Embedding
-                                         "outputs (shifted right)"
-                                                    │
-                                                 Linear
-                                                    │
-                                                 Softmax
-                                                    │
-                                          Output Probabilities
+```mermaid
+flowchart LR
+    IE["input embedding<br/>'the cat sat' + positional"] --> ENC
+    subgraph ENC["Encoder × N"]
+      direction TB
+      e1["Multi-Head Attention → Add & Norm"] --> e2["Feed Forward → Add & Norm"]
+    end
+    ENC -->|"encoder output → K, V"| DEC
+    OE["output embedding<br/>outputs (shifted right) + positional"] --> DEC
+    subgraph DEC["Decoder × N"]
+      direction TB
+      d1["Masked Multi-Head Attention → Add & Norm"] --> d2["Cross Multi-Head Attention → Add & Norm"] --> d3["Feed Forward → Add & Norm"]
+    end
+    DEC --> L["Linear"] --> SM["Softmax"] --> OUT["output probabilities"]
 ```
 
 ## 13. The Decoder — the Prediction Head [slide 93]
@@ -616,11 +593,9 @@ to a classifier. [SEP] ends each sentence."*
 *"Pick about **15%** of tokens at random and replace each. Because attention is bidirectional, every
 blank is predicted from the full left and right context. The original word is the free label."*
 
-```
-data in:   the  [MASK]  sat  on  the  mat
-                  │
-                  ▼  BERT, then softmax over the vocabulary at the masked slot
-data out:  cat 0.83  dog 0.05  kitten 0.04  mat 0.03  rug 0.01  ...
+```mermaid
+flowchart LR
+    IN["the · <b>[MASK]</b> · sat · on · the · mat"] --> B["<b>BERT</b> → softmax over the vocabulary at the masked slot"] --> OUT["cat 0.83 · dog 0.05 · kitten 0.04 · mat 0.03 · …"]
 ```
 
 **loss = cross-entropy between this distribution and the true word "cat", averaged over the masked
@@ -659,14 +634,11 @@ one."*
 
 ### 15.5 BERT — Fine-Tuning: Reuse the Body, Add a Small Task Head [slide 111]
 
-```
-"the movie was great"
-         │
-   pre-trained BERT (weights reused, lightly updated)
-         │
-   [CLS] vector (size d)
-         │
-   new task head → positive / negative
+```mermaid
+flowchart TD
+    T["'the movie was great'"] --> B["<b>pre-trained BERT</b><br/><small>weights reused, lightly updated</small>"] --> C["[CLS] vector · size d"] --> H["<b>new task head</b>"] --> R["positive / negative"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class B k
 ```
 
 *"Why so little data is enough. BERT already understands language from pre-training. The head only
@@ -883,32 +855,22 @@ grounding the aggregate accuracy number in individual cases the reader can reaso
 
 ## Putting it together
 
-```
-Part 1: Tokenization                Part 2: Transformer                Part 3: Language Models
-─────────────────────               ─────────────────────              ─────────────────────
-Word-level: brittle, OOV     ┐                                    ┌─▶ Encoder-only (BERT):
-Character-level: O(n²), weak ├─▶ text → subword tokens → IDs ──▶ │    bidirectional, masked LM
-BPE/WordPiece/Unigram:       │                                    │
-"meet in the middle"         ┘   + positional encoding            ├─▶ Decoder-only (GPT):
-                                  (attention has no order sense)   │    causal, next-token
-                                       │                           │
-                                  N × [attend, add&norm,           ├─▶ Encoder-decoder (T5):
-                                       transform, add&norm]        │    both + cross-attention,
-                                       │                           │    denoising spans
-                                  encoder (bidirectional) or       │
-                                  decoder (causal + optional       └─▶ same block, different
-                                  cross-attention)                      attention pattern,
-                                       │                                different objective,
-                                  Linear → Softmax →                   different adaptation
-                                  next-token / masked-token
-                                  probabilities                   Adapt cheaply: prompting →
-                                                                   instruction tuning → RLHF
-                                                                   full fine-tune → adapters →
-                                                                   LoRA → QLoRA
-                                                                        │
-                                                                   empirically: 0.70 → 0.88
-                                                                   test accuracy from
-                                                                   pre-training alone
+```mermaid
+flowchart TD
+    subgraph T1["Part 1 · Tokenization"]
+      direction TB
+      w["word-level: brittle, OOV"] --- c["character-level: O(n²), weak"] --- bpe["<b>BPE / WordPiece / Unigram</b> — 'meet in the middle'"]
+    end
+    T1 --> TXT["text → subword tokens → IDs<br/><small>+ positional encoding (attention has no order sense)</small>"]
+    TXT --> BLK["<b>N × [attend, add & norm, transform, add & norm]</b><br/><small>encoder (bidirectional) or decoder (causal + optional cross-attention)</small>"]
+    BLK --> LS["Linear → Softmax → next-token / masked-token probabilities"]
+    LS --> BERT["<b>Encoder-only (BERT)</b> — bidirectional, masked LM"]
+    LS --> GPT["<b>Decoder-only (GPT)</b> — causal, next-token"]
+    LS --> T5["<b>Encoder–decoder (T5)</b> — both + cross-attention, denoising spans"]
+    BERT & GPT & T5 --> SAME["<b>same block</b> — different attention pattern, different objective, different adaptation"]
+    SAME --> ADAPT["<b>adapt cheaply</b> — prompting → instruction tuning → RLHF · full fine-tune → adapters → LoRA → QLoRA<br/><small>empirically: 0.70 → 0.88 test accuracy from pre-training alone</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class BLK,SAME k
 ```
 
 Three threads run through this lecture:

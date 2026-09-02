@@ -94,29 +94,17 @@ Part 1 answered "how do you turn a word into numbers?" This lecture answers the 
 **those numbers were still fixed per word — how do you make a word's representation depend on the
 sentence it's actually in?** The arc is a chain of "here's the fix, but it has a new problem" steps:
 
-```
-Static embeddings (Word2Vec/GloVe/FastText)
-   │  problem: "bank" gets ONE vector regardless of context
-   ▼
-ELMo — contextual embeddings via a bidirectional LSTM
-   │  problem: still sequential → can't parallelize, gradients still fade over long sequences
-   ▼
-Encoder-Decoder (Seq2Seq) — two RNNs, one reads, one writes
-   │  problem: everything is squeezed through ONE fixed-size "context vector" — the bottleneck
-   ▼
-Attention — decoder looks back at ALL encoder states, weighted by relevance
-   │  problem: attention as introduced here only connects TWO sequences (encoder ↔ decoder);
-   │           it doesn't yet help a single sentence understand itself
-   ▼
-Self-Attention — the same weighted-lookup idea, but a sequence attends to itself
-   │  fixes: RNN's O(sequence length) path between distant tokens → O(1); and the parallelism problem
-   ▼
-Scaled Dot-Product Attention + Multi-Head Attention — the actual mechanism, made numerically stable
-   and given multiple "perspectives" at once
-   │
-   ▼
-[Part 3, not yet covered here] Assembling the Transformer: + positional encoding, layer norm,
-residual connections, feed-forward layers, masking — then BERT/GPT/T5 as configurations of it
+```mermaid
+flowchart TD
+    SE["<b>Static embeddings</b> (Word2Vec / GloVe / FastText)<br/><small>'bank' gets one vector regardless of context</small>"]
+    SE --> ELMO["<b>ELMo</b> — contextual embeddings via a bidirectional LSTM<br/><small>still sequential → can't parallelise, gradients still fade over long sequences</small>"]
+    ELMO --> S2S["<b>Encoder–Decoder (Seq2Seq)</b> — two RNNs, one reads, one writes<br/><small>everything squeezed through one fixed-size context vector — the bottleneck</small>"]
+    S2S --> ATT["<b>Attention</b> — the decoder looks back at all encoder states, weighted by relevance<br/><small>but it only connects two sequences (encoder ↔ decoder); a sentence still can't understand itself</small>"]
+    ATT --> SA["<b>Self-attention</b> — the same weighted-lookup idea, a sequence attending to itself<br/><small>fixes the O(seq length) path between distant tokens → O(1), and the parallelism problem</small>"]
+    SA --> SDPA["<b>Scaled dot-product + multi-head attention</b> — the mechanism, made numerically stable and given several perspectives at once"]
+    SDPA --> T["<b>Part 3</b> — assemble the Transformer: + positional encoding, layer norm, residuals, feed-forward, masking → BERT / GPT / T5"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SA k
 ```
 
 Every step in this chain is introduced with the same rhetorical move: name a *concrete* failure of
@@ -162,18 +150,14 @@ sitting near `river/water/stream`, and `"bank" (financial)` sitting near `deposi
 4. **Stack 2 layers deep**
 5. **Final embedding = weighted sum of all layers**
 
-```
-Embedding of "stick" in "Let's stick to" — Step #1     [slide 6]
-(Image credit, per the slide's own caption: Jay Alammar, "The Illustrated BERT.")
-
-           Forward Language Model              Backward Language Model
-LSTM
-Layer #2    ●───▶●───▶●                          ●◀───●◀───●
-              ↑     ↑     ↑                          ↑     ↑     ↑
-LSTM
-Layer #1    ●───▶●───▶●                          ●◀───●◀───●
-              ↑     ↑     ↑                          ↑     ↑     ↑
-Embedding   [Let's][stick][to]                    [Let's][stick][to]
+```mermaid
+flowchart TD
+    E["Embedding · [Let's] [stick] [to]"]
+    E --> F1["forward LSTM layer 1 →"] --> F2["forward LSTM layer 2 →"]
+    E --> B1["← backward LSTM layer 1"] --> B2["← backward LSTM layer 2"]
+    F2 & B2 --> C(["ELMo embedding of 'stick' in context = a learned mix of all layers"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class C k
 ```
 
 > 💡 **Key insight — why bidirectional matters.** A left-to-right-only reader knows "stick" is
@@ -186,19 +170,13 @@ Embedding   [Let's][stick][to]                    [Let's][stick][to]
 > **Character CNN** — before the biLSTM runs, every word is built from its individual characters
 > using convolutional filters, rather than looked up in a fixed vocabulary table [slide 9].
 
-```
-                     [feeds into biLSTM layers...]
-                              │
-                Character-Level Word Embedding
-                              │
-                        [Concatenate]
-                   ┌──────────┼──────────┐
-                 [max]      [max]      [max]
-                   │           │           │
-             Width-3 Conv Width-4 Conv Width-5 Conv
-                   │           │           │
-             ┌─────┴─────────────────────┴─────┐
-             p   l   a   y   i   n   g   (raw characters, no vocabulary lookup needed)
+```mermaid
+flowchart TD
+    CH["raw characters · p l a y i n g<br/><small>no vocabulary lookup</small>"]
+    CH --> C3["width-3 conv"] --> M3["max-pool"]
+    CH --> C4["width-4 conv"] --> M4["max-pool"]
+    CH --> C5["width-5 conv"] --> M5["max-pool"]
+    M3 & M4 & M5 --> CAT["concatenate → character-level word embedding"] --> BI["feeds into the biLSTM layers"]
 ```
 
 Several convolutional filters of different widths (3, 4, 5 characters) slide over the raw character
@@ -357,13 +335,12 @@ translating one sequence into another.
 > sequence token by token and produces a single final hidden state (the **context vector**); a
 > **decoder** reads that context vector and generates the output sequence token by token [slide 41].
 
-```
-   ENCODER                              DECODER
-   ┌───┐  ┌───┐  ┌───┐  ┌───┐    ┌──────────┐   ┌───┐  ┌───┐  ┌───┐  ┌───┐
-   │ Je│─▶│suis│─▶│ un│─▶│étud│─▶│  Context  │──▶│ I │─▶│ am│─▶│ a │─▶│stud│
-   └───┘  └───┘  └───┘  └───┘    │  Vector   │   └───┘  └───┘  └───┘  └───┘
-                                  └──────────┘
-                          Entire input compressed into one vector    [slide 41]
+```mermaid
+flowchart LR
+    J["Je"] --> S1["suis"] --> U["un"] --> ET["étudiant"] --> CV{{"context vector<br/><small>the entire input, compressed into one vector</small>"}}
+    CV --> I["I"] --> AM["am"] --> A["a"] --> ST["student"]
+    classDef bn fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class CV bn
 ```
 
 **Used for:** translation, summarization, question answering — any task where the input and output
@@ -522,11 +499,25 @@ it refers to.
 
 $$\mathbf{Q} = \mathbf{X}\mathbf{W}^Q \qquad \mathbf{K} = \mathbf{X}\mathbf{W}^K \qquad \mathbf{V} = \mathbf{X}\mathbf{W}^V$$
 
-```
-   X          W^Q         Q               X          W^K         K              X          W^V         V
- [────]   ×  [────]  =  [────]          [────]   ×  [────]  =  [────]        [────]   ×  [────]  =  [────]
- (n×d)      (d×d_k)     (n×d_k)         (n×d)      (d×d_k)     (n×d_k)       (n×d)      (d×d_v)     (n×d_v)
-                                                                                                [slide 74]
+```svg
+<svg viewBox="0 0 560 130" role="img" aria-label="Q, K, V are linear projections of the input X" font-family="system-ui,sans-serif">
+  <style>.x{fill:#2C2820;stroke:#4C4739}.w{fill:#1E3025;stroke:#8CDCA6}.out{fill:#242119;stroke:#4FA073}
+    .op{fill:#EDE6D7;font-size:16px}.lab{fill:#B4AA95;font-size:10.5px}.h{fill:#EDE6D7;font-size:12px;font-weight:700}</style>
+  <g>
+    <rect class="x" x="14" y="34" width="40" height="40"/><text class="op" x="62" y="60">×</text><rect class="w" x="78" y="34" width="40" height="40"/><text class="op" x="126" y="60">=</text><rect class="out" x="142" y="34" width="40" height="40"/>
+    <text class="h" x="164" y="24" text-anchor="middle">Q</text>
+    <rect class="x" x="204" y="34" width="40" height="40"/><text class="op" x="252" y="60">×</text><rect class="w" x="268" y="34" width="40" height="40"/><text class="op" x="316" y="60">=</text><rect class="out" x="332" y="34" width="40" height="40"/>
+    <text class="h" x="354" y="24" text-anchor="middle">K</text>
+    <rect class="x" x="394" y="34" width="40" height="40"/><text class="op" x="442" y="60">×</text><rect class="w" x="458" y="34" width="40" height="40"/><text class="op" x="506" y="60">=</text><rect class="out" x="522" y="34" width="34" height="40"/>
+    <text class="h" x="539" y="24" text-anchor="middle">V</text>
+  </g>
+  <g class="lab" text-anchor="middle">
+    <text x="34" y="90">X (n×d)</text><text x="98" y="90">W�Q</text><text x="162" y="90">(n×d_k)</text>
+    <text x="224" y="90">X (n×d)</text><text x="288" y="90">Wᴷ</text><text x="352" y="90">(n×d_k)</text>
+    <text x="414" y="90">X (n×d)</text><text x="478" y="90">Wⱽ</text><text x="539" y="90">(n×d_v)</text>
+  </g>
+  <text class="lab" x="280" y="116" text-anchor="middle">Q, K and V are three different linear views of the same input X</text>
+</svg>
 ```
 
 $\mathbf{X}$ is the matrix of raw token embeddings (one row per token); $\mathbf{W}^Q, \mathbf{W}^K,
@@ -699,15 +690,13 @@ $h=8$ heads. So $d_k = d_v = 64$ per head. **Same total compute as one big head*
 structural point, not an approximation: splitting into 8 heads of dimension 64 costs the same total
 FLOPs as one head of dimension 512, because the per-head matrices are correspondingly smaller.
 
-```
-1) Input          2) Embed         3) Split into 8 heads       4) Attention        5) Concat + W^O
-sentence*          each word        via W_i^Q, W_i^K, W_i^V     per head            → layer output
-
-"Thinking            X          ┌─ W0^Q,W0^K,W0^V → Q0,K0,V0 → Attention → Z0 ─┐
- Machines"        [embeddings]  ├─ W1^Q,W1^K,W1^V → Q1,K1,V1 → Attention → Z1 ─┤
-                                 │              ...                            ├─▶ Concat → ×W^O → Z
-                                 └─ W7^Q,W7^K,W7^V → Q7,K7,V7 → Attention → Z7 ─┘
-                                                                              [slide 129]
+```mermaid
+flowchart LR
+    X["input embeddings X<br/>'Thinking Machines'"] --> SP{{"split into 8 heads"}}
+    SP --> H0["head 0 · W₀ᵠ W₀ᴷ W₀ⱽ → attention → Z₀"]
+    SP --> H1["head 1 → Z₁"]
+    SP --> HD["… head 7 → Z₇"]
+    H0 & H1 & HD --> CC["concat → × Wᴼ → Z<br/><small>the layer output</small>"]
 ```
 
 *(Footnote on the original slide: "In all encoders other than #0, we don't need embedding. We start
@@ -780,39 +769,15 @@ timeline graphic [slide 133] and confirmed accurate as read; no hedge needed.
 
 ## Putting it together
 
-```
-                    ┌───────────────────────────────┐
-                    │ The RNN's two structural flaws  │
-                    │  (§3): sequential-only →         │
-                    │  1. vanishing gradients over time│
-                    │  2. no parallelism across tokens │
-                    └────────────┬────────────────────┘
-                                 │  attention (§6) fixes the
-                                 │  BOTTLENECK between two sequences,
-                                 │  but the encoder is still an RNN
-                                 ▼
-                    ┌───────────────────────────────┐
-                    │ Self-attention (§7) applies the │
-                    │ SAME mechanism WITHIN one       │
-                    │ sequence — this is what actually │
-                    │ fixes BOTH of §3's flaws:        │
-                    │  • O(1) path length (no chain)   │
-                    │  • fully parallel (no h_t→h_t+1) │
-                    └────────────┬────────────────────┘
-                                 │
-                    ┌────────────┴────────────────────┐
-                    ▼                                  ▼
-        Scaled Dot-Product (§9)              Multi-Head (§10)
-        makes ONE attention computation      runs SEVERAL attention
-        numerically stable as d_k grows      computations in parallel,
-        (÷√d_k keeps softmax's gradient      each free to specialize
-        alive)                               (positional/syntactic/
-                                              coreference/semantic)
-                                 │
-                                 ▼
-                    [Part 3] + positional encoding, layer norm,
-                    residual connections, feed-forward layers,
-                    masked attention → the full Transformer
+```mermaid
+flowchart TD
+    FLAW["<b>The RNN's two structural flaws (§3)</b> — sequential-only<br/><small>1. vanishing gradients over time · 2. no parallelism across tokens</small>"]
+    FLAW -->|"attention (§6) fixes the bottleneck between two sequences, but the encoder is still an RNN"| SA["<b>Self-attention (§7)</b> — the same mechanism <i>within</i> one sequence<br/><small>fixes both flaws: O(1) path length (no chain) · fully parallel (no hₜ → hₜ₊₁)</small>"]
+    SA --> SDP["<b>Scaled dot-product (§9)</b><br/><small>makes one attention computation numerically stable as d_k grows (÷√d_k keeps softmax's gradient alive)</small>"]
+    SA --> MH["<b>Multi-head (§10)</b><br/><small>runs several attention computations in parallel, each free to specialise (positional / syntactic / coreference / semantic)</small>"]
+    SDP & MH --> T["<b>Part 3</b> — + positional encoding, layer norm, residual connections, feed-forward layers, masked attention → the full Transformer"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SA k
 ```
 
 Three threads run through this lecture:
