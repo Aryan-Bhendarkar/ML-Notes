@@ -84,42 +84,19 @@ This lecture answers one question with three progressively more powerful tools: 
 you only ever *observed* what happened, how do you answer a question about what *would* happen if
 you *acted*?**
 
-```
-Prediction ("what will Y be?")          Causal question ("what if we set X = x?")
-        │                                          │
-        │ P(Y | X)  ≠  P(Y | do(X))  — these are DIFFERENT quantities, in general
-        │
-        ▼
-Why they differ: confounding — a common cause Z of both X and Y creates an association
-between X and Y even when X has no effect on Y at all (Simpson's paradox, §2)
-        │
-        ▼
-Two formal languages for the same problem:
-        │
-        ├──▶ Potential Outcomes (Rubin) — define τ = Y(1) - Y(0) per unit; the
-        │    "fundamental problem" is that you only ever observe ONE of Y(1), Y(0) (§3)
-        │
-        └──▶ Structural Causal Models / DAGs (Pearl) — encode causal structure as a
-             graph; P(Y | do(X)) means "delete X's incoming edges, then read off Y" (§4)
-                        │
-                        ▼
-             Conditional independence in a graph — chains, forks, colliders (§5)
-                        │
-                        ▼
-             d-separation — a complete, mechanical procedure for reading every
-             conditional independence directly off the graph (§6)
-                        │
-                        ▼
-             do-calculus — three rules that let you REDUCE a do(·) expression to a
-             plain observational one, when the graph permits it (§7)
-                        │
-                        ▼
-             Backdoor / frontdoor adjustment — the two most common, ready-made
-             recipes built from those three rules (§8)
-                        │
-                        ▼
-             RCTs — sidestep the entire identification problem by randomizing,
-             but at a real cost in money, ethics, and generalizability (§9)
+```mermaid
+flowchart TD
+    Q["<b>Prediction</b> 'what will Y be?' — P(Y | X)<br/>vs<br/><b>Causal</b> 'what if we set X = x?' — P(Y | do(X))<br/><small>different quantities, in general</small>"]
+    Q --> CONF["<b>Why they differ: confounding</b><br/><small>a common cause Z of both X and Y creates an association even when X has no effect on Y (Simpson's paradox, §2)</small>"]
+    CONF --> PO["<b>Potential Outcomes</b> (Rubin) · §3<br/><small>τ = Y(1) − Y(0) per unit · the fundamental problem: you only ever observe one of Y(1), Y(0)</small>"]
+    CONF --> SCM["<b>Structural Causal Models / DAGs</b> (Pearl) · §4<br/><small>P(Y | do(X)) = delete X's incoming edges, then read off Y</small>"]
+    SCM --> CI["<b>Conditional independence in a graph</b> — chains, forks, colliders · §5"]
+    CI --> DS["<b>d-separation</b> — a complete, mechanical procedure for every conditional independence · §6"]
+    DS --> DC["<b>do-calculus</b> — three rules that reduce a do(·) expression to an observational one, when the graph permits · §7"]
+    DC --> ADJ["<b>Backdoor / frontdoor adjustment</b> — the two ready-made recipes built from those rules · §8"]
+    ADJ --> RCT["<b>RCTs</b> — randomise and sidestep identification entirely, at a cost in money, ethics and generalizability · §9"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SCM,DC k
 ```
 
 Every later technique in this lecture is a way of answering the same question — *"what is
@@ -585,45 +562,20 @@ methods:
 
 ## Putting it together
 
-```
-                    ┌──────────────────────────────┐
-                    │  P(Y|X) ≠ P(Y|do(X))           │
-                    │  the problem this whole         │
-                    │  lecture exists to solve         │
-                    └───────────────┬──────────────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    ▼                                ▼
-        ┌─────────────────────┐         ┌─────────────────────────┐
-        │ Potential Outcomes    │         │ Structural Causal Models │
-        │ (Rubin, 1974)          │         │ (Pearl, DAGs)             │
-        │ τ = Y(1) - Y(0)        │         │ do(X) = delete X's        │
-        │ fundamental problem:   │         │ incoming edges            │
-        │ never jointly observed │         └────────────┬─────────────┘
-        └───────────┬─────────────┘                      │
-                    │                       ┌─────────────┴─────────────┐
-                    │                       ▼                           ▼
-                    │           Conditional independence      d-separation: the
-                    │           (chain/fork/collider) —       complete, mechanical
-                    │           §5's atomic building block     rule built from §5
-                    │                       │                           │
-                    │                       └─────────────┬─────────────┘
-                    │                                     ▼
-                    │                          do-calculus's three rules:
-                    │                          reduce do(·) to observational
-                    │                          quantities, when possible
-                    │                                     │
-                    │                       ┌─────────────┴─────────────┐
-                    │                       ▼                           ▼
-                    │              Backdoor adjustment          Frontdoor adjustment
-                    │              (measured confounders)       (unmeasured confounders,
-                    │                                            measured mediator)
-                    │                                     │
-                    └─────────────────────┬───────────────┘
-                                          ▼
-                          RCTs: sidestep identification entirely by
-                          randomizing — but cost/ethics/generalizability
-                          push most real problems back to the machinery above
+```mermaid
+flowchart TD
+    P["<b>P(Y|X) ≠ P(Y|do(X))</b><br/><small>the problem this whole lecture exists to solve</small>"]
+    P --> PO["<b>Potential Outcomes</b> (Rubin, 1974)<br/><small>τ = Y(1) − Y(0) · fundamental problem: never jointly observed</small>"]
+    P --> SCM["<b>Structural Causal Models</b> (Pearl, DAGs)<br/><small>do(X) = delete X's incoming edges</small>"]
+    SCM --> CI["<b>Conditional independence</b> — chain / fork / collider · §5's atomic building block"]
+    CI --> DS["<b>d-separation</b> — the complete, mechanical rule built from §5"]
+    DS --> DC["<b>do-calculus's three rules</b> — reduce do(·) to observational quantities, when possible"]
+    DC --> BD["<b>Backdoor adjustment</b><br/><small>measured confounders</small>"]
+    DC --> FD["<b>Frontdoor adjustment</b><br/><small>unmeasured confounders, measured mediator</small>"]
+    PO --> RCT
+    BD & FD --> RCT["<b>RCTs</b> — sidestep identification by randomising<br/><small>but cost / ethics / generalizability push most real problems back to the machinery above</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DC k
 ```
 
 Three threads run through this lecture:

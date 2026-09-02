@@ -93,41 +93,22 @@ low-dimensional data. This lecture asks: **what happens when the data is high-di
 treatment effects are heterogeneous, and we need ML's flexibility without ML's regularization
 bias?**
 
-```
-Part 1 — Foundations (Lecture 21)
-   Why P(Y|X) ≠ P(Y|do(X)). DAGs, do-calculus, backdoor/frontdoor. RCTs as gold standard.
-        │
-        ▼
-Part 2 — Classical Estimation (Lecture 22)
-   Six recipes (stratification → AIPW) scored against a known $1,794 truth.
-   Finding: overlap matters more than estimator choice.
-   Bridge: every method reduces to estimating e(x) and μ_t(x) — exactly what ML can replace.
-        │
-        ▼
-Part 3 — Causal ML Methods (Lecture 23, this file)
-   │
-   ├── Heterogeneous treatment effects: from ATE to CATE (§1–§2)
-   │
-   ├── Meta-learners: S, T, X (§3) — flexible ML plug-ins, but regularization bias
-   │
-   ├── Causal trees & forests (§4) — honest estimation, valid CIs, interpretable
-   │
-   ├── Deep representation learning: TarNet, CFRNet (§5) — neural-net-based balancing
-   │
-   ├── DML framework (§6–§8): the theoretical backbone
-   │   ├── Partialing out (Robinson decomposition) — remove confounders
-   │   ├── Neyman orthogonality — suppress nuisance-function bias
-   │   └── Cross-fitting — prevent overfitting
-   │
-   ├── R-Learner (§9) — DML + heterogeneous effects via meta-learner interface
-   │
-   ├── DR-Learner (§10) — doubly robust + orthogonal + meta-learner
-   │
-   └── The full landscape mapped onto the canonical DAG (§11)
-        │
-        ▼
-   Beyond treatment effects: robust ML, causal generative models, causal RL,
-   fairness, explainability, LLMs (§12)
+```mermaid
+flowchart TD
+    P1["<b>Part 1 · Foundations</b> (L21) — why P(Y|X) ≠ P(Y|do(X)) · DAGs, do-calculus, backdoor / frontdoor · RCTs as gold standard"]
+    P1 --> P2["<b>Part 2 · Classical estimation</b> (L22) — six recipes (stratification → AIPW) vs a known $1,794 truth<br/><small>finding: overlap matters more than estimator choice · bridge: every method reduces to e(x) and μ_t(x)</small>"]
+    P2 --> P3["<b>Part 3 · Causal ML methods</b> (L23, this file)"]
+    P3 --> HET["heterogeneous effects: ATE → CATE · §1–2"]
+    P3 --> META["<b>Meta-learners</b> S / T / X · §3<br/><small>flexible plug-ins, but regularization bias</small>"]
+    P3 --> CF["<b>Causal trees & forests</b> · §4<br/><small>honest estimation, valid CIs, interpretable</small>"]
+    P3 --> REP["<b>Deep representation learning</b> — TarNet, CFRNet · §5<br/><small>neural-net balancing</small>"]
+    P3 --> DML["<b>DML framework</b> · §6–8<br/><small>partialing out (Robinson) · Neyman orthogonality · cross-fitting</small>"]
+    DML --> RL["<b>R-Learner</b> · §9 — DML + heterogeneous effects via a meta-learner interface"]
+    DML --> DRL["<b>DR-Learner</b> · §10 — doubly robust + orthogonal + meta-learner"]
+    RL & DRL --> MAP["<b>§11</b> the full landscape mapped onto the canonical DAG"]
+    MAP --> BEY(["<b>§12 beyond treatment effects</b> — robust ML, causal generative models, causal RL, fairness, explainability, LLMs"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class P3,DML,BEY k
 ```
 
 ---
@@ -425,12 +406,11 @@ $$\hat\tau(x) = \hat{h}_1(\phi(x)) - \hat{h}_0(\phi(x))$$
 > Shalit et al. (2017), ICML."
 
 **Architecture:**
-```
-X → [Shared Encoder φ] → [Treatment Head h₁] → μ̂₁(x)
-                                 ↘
-                                  z = φ(x)
-                                 ↗
-                  [Control Head h₀] → μ̂₀(x)
+```mermaid
+flowchart LR
+    X["X"] --> PHI["shared encoder φ"] --> Z["z = φ(x)"]
+    Z --> H1["treatment head h₁"] --> M1["μ̂₁(x)"]
+    Z --> H0["control head h₀"] --> M0["μ̂₀(x)"]
 ```
 
 - **Shared trunk (encoder):** MLP layers that produce a latent representation $z = \phi(x)$
@@ -489,12 +469,12 @@ counterfactual error is also small — because the model is interpolating rather
 
 *"TARNet + propensity head + targeted regularization."*
 
-```
-X → [Shared Encoder φ] → [Treatment Head h₁] → μ̂₁(x)
-                  ↘             ↘
-                    [Propensity Head] → ê(x)
-                  ↗             ↗
-        [Control Head h₀] → μ̂₀(x)
+```mermaid
+flowchart LR
+    X["X"] --> PHI["shared encoder φ"] --> Z["z = φ(x)"]
+    Z --> H1["treatment head h₁"] --> M1["μ̂₁(x)"]
+    Z --> HE["propensity head"] --> E["ê(x)"]
+    Z --> H0["control head h₀"] --> M0["μ̂₀(x)"]
 ```
 
 **Why add a propensity head at all, when the goal is the outcome heads $\hat\mu_0,\hat\mu_1$?**
@@ -848,50 +828,18 @@ and counterfactual data augmentation.
 
 ## Putting it together
 
-```
-        THE CAUSAL ML METHOD LANDSCAPE
-        ════════════════════════════════
-
-        Problem: high-dimensional observational data → heterogeneous treatment effects
-        Goal: estimate τ(x) without regularization bias
-
-                    ┌────────────────────────────┐
-                    │   Meta-Learners (§3)        │
-                    │   S-Learner: one model       │ ← simple, but regularization bias
-                    │   T-Learner: two models      │ ← no information sharing
-                    │   X-Learner: four stages     │ ← propensity-weighted blending
-                    └──────────┬─────────────────┘
-                               │
-                    ┌──────────▼─────────────────┐
-                    │   Causal Trees/Forests (§4) │
-                    │   Honest estimation          │ ← unbiased + valid CIs
-                    │   Ensemble → low variance    │ ← interpretable
-                    └──────────┬─────────────────┘
-                               │
-                    ┌──────────▼─────────────────┐
-                    │   Deep Representation (§5)  │
-                    │   TarNet: implicit balance   │ ← neural-net flexibility
-                    │   CFRNet: explicit IPM       │ ← distributional balance
-                    └──────────┬─────────────────┘
-                               │
-                    ┌──────────▼─────────────────┐
-                    │   DML Framework (§6–§8)      │
-                    │   Partialing out             │ ← remove confounders
-                    │   Neyman orthogonality       │ ← suppress bias to O(δ²)
-                    │   Cross-fitting              │ ← prevent overfitting
-                    └──────────┬─────────────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    ▼                     ▼
-          ┌──────────────┐     ┌──────────────────┐
-          │  R-Learner   │     │  DR-Learner      │
-          │  DML + CATE  │     │  AIPW + DML +    │
-          │  via residual│     │  meta-learner     │
-          │  regression  │     │  double robust    │
-          └──────────────┘     └──────────────────┘
-
-        All methods: target the same causal DAG edge (T → Y),
-        differ only in HOW they block the confounders (X → T, X → Y)
+```mermaid
+flowchart TD
+    P["<b>The causal-ML method landscape</b><br/><small>high-dimensional observational data → heterogeneous treatment effects · goal: estimate τ(x) without regularization bias</small>"]
+    P --> ML["<b>Meta-learners</b> · §3<br/><small>S: one model (regularization bias) · T: two models (no sharing) · X: four stages (propensity-weighted blending)</small>"]
+    ML --> CF["<b>Causal trees / forests</b> · §4<br/><small>honest estimation → unbiased + valid CIs · ensemble → low variance · interpretable</small>"]
+    CF --> DR["<b>Deep representation</b> · §5<br/><small>TarNet: implicit balance · CFRNet: explicit IPM (distributional balance)</small>"]
+    DR --> DML["<b>DML framework</b> · §6–8<br/><small>partialing out (remove confounders) · Neyman orthogonality (bias → O(δ²)) · cross-fitting (prevent overfitting)</small>"]
+    DML --> RL["<b>R-Learner</b><br/><small>DML + CATE via residual regression</small>"]
+    DML --> DRL["<b>DR-Learner</b><br/><small>AIPW + DML + meta-learner, double robust</small>"]
+    RL & DRL --> ALL(["all methods target the same DAG edge T → Y — they differ only in <i>how</i> they block the confounders X → T, X → Y"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DML,ALL k
 ```
 
 Three threads run through this lecture:

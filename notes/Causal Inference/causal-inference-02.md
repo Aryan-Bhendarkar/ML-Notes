@@ -97,30 +97,14 @@ Lecture 21 established the theory: $P(Y\mid X)\ne P(Y\mid\text{do}(X))$, and ide
 either randomization or the right assumptions plus the right graphical structure. This lecture
 **operationalizes** that theory on one real dataset, in three acts:
 
-```
-Part 1 — Treatment effects
-   One dataset, two comparisons, opposite signs. What number are we even trying to compute?
-   (estimand/estimator/estimate; ITE/ATE/ATT/ATC/CATE)
-        │
-        ▼
-Part 2 — Identification
-   WHY do the two comparisons disagree? Selection bias, decomposed algebraically.
-   Which covariates fix it (confounders) and which break it further (mediators, colliders)?
-   The three assumptions (unconfoundedness, positivity, SUTVA) that must hold for
-   adjustment to work at all.
-        │
-        ▼
-Part 3 — Classical estimation
-   Six concrete recipes for computing an adjusted estimate — stratification, matching,
-   propensity-score weighting, regression adjustment, doubly robust estimation — each
-   scored against the SAME known $1,794 truth, so their real-world accuracy is directly
-   comparable, not just theoretically motivated.
-        │
-        ▼
-   Bridge to machine learning: every classical method rests on estimating one or both of
-   two "nuisance functions" — propensity e(x) and outcome μ(x) — which is exactly what
-   flexible ML models can replace hand-built formulas with (setting up the "from classical
-   estimation to ML" transition, presumably continued in Lecture 23).
+```mermaid
+flowchart TD
+    P1["<b>Part 1 · Treatment effects</b><br/><small>one dataset, two comparisons, opposite signs — what number are we even trying to compute? (estimand / estimator / estimate; ITE / ATE / ATT / ATC / CATE)</small>"]
+    P1 --> P2["<b>Part 2 · Identification</b><br/><small>why do the two comparisons disagree? selection bias, decomposed algebraically · which covariates fix it (confounders) vs break it further (mediators, colliders) · the three assumptions: unconfoundedness, positivity, SUTVA</small>"]
+    P2 --> P3["<b>Part 3 · Classical estimation</b><br/><small>six recipes — stratification, matching, propensity-score weighting, regression adjustment, doubly robust — each scored against the same known $1,794 truth</small>"]
+    P3 --> BR["<b>Bridge to ML</b><br/><small>every classical method rests on estimating one or both nuisance functions — propensity e(x) and outcome μ(x) — exactly what flexible ML models can replace hand-built formulas with</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class BR k
 ```
 
 Because every method is tested against the *same* real, known answer, this lecture teaches causal
@@ -814,45 +798,18 @@ $$\text{gap} = |\widehat{\text{ATT}} - \text{ATT}|$$
 
 ## Putting it together
 
-```
-                ┌───────────────────────────────────────┐
-                │  Naive $-8,498  vs.  Randomized  $1,794  │
-                │  same data, opposite signs                │
-                └──────────────────┬────────────────────────┘
-                                   │  decomposes exactly into
-                                   ▼
-              naive = ATT + selection bias
-              ($1,794)   (the rest of the -$8,498 gap)
-                                   │
-                    ┌──────────────┴───────────────┐
-                    ▼                               ▼
-        Which covariates FIX this?         Which covariates BREAK this further?
-        Confounders — adjusting            Mediators (-$110), colliders (-$806) —
-        removes selection bias             adjusting fabricates NEW bias
-                    │                               │
-                    └──────────────┬────────────────┘
-                                   ▼
-              Three assumptions must hold for adjustment to work AT ALL:
-              unconfoundedness (untestable) · positivity (185/185 have overlap at
-              baseline; a simulated +9yr shift drops this to 118/185) · SUTVA
-              (spillover understates: $987 vs $1,794)
-                                   │
-                    ┌──────────────┴────────────────┐
-                    ▼                                ▼
-        High-dimensional matching FAILS      Propensity score e(x) reduces
-        (curse of dimensionality:            X to one scalar — but must be
-        6,561 cells, 42 populated)           built for BALANCE, not prediction
-                    │                                │
-                    └──────────────┬─────────────────┘
-                                   ▼
-        Six concrete estimators, all scored against the SAME known $1,794:
-        stratification · matching · IPW (+trimming) · regression adjustment
-        · AIPW (doubly robust — consistent if EITHER nuisance model is right)
-                                   │
-                                   ▼
-        Finding: overlap matters more than estimator sophistication —
-        AND every method reduces to estimating e(x) and μ_t(x), which
-        is exactly where flexible ML models take over next
+```mermaid
+flowchart TD
+    N["<b>Naive −$8,498  vs  randomized $1,794</b><br/><small>same data, opposite signs</small>"]
+    N -->|"decomposes exactly into"| D["<b>naive = ATT + selection bias</b><br/><small>$1,794 + the rest of the −$8,498 gap</small>"]
+    D --> FIX["<b>Which covariates fix this?</b><br/><small>confounders — adjusting removes selection bias</small>"]
+    D --> BRK["<b>Which covariates break it further?</b><br/><small>mediators (−$110), colliders (−$806) — adjusting fabricates new bias</small>"]
+    FIX & BRK --> AS["<b>Three assumptions must hold for adjustment to work at all</b><br/><small>unconfoundedness (untestable) · positivity (185/185 overlap at baseline; a +9yr shift drops it to 118/185) · SUTVA (spillover understates: $987 vs $1,794)</small>"]
+    AS --> PS["<b>Propensity score e(x)</b> reduces X to one scalar<br/><small>high-dimensional matching fails (6,561 cells, 42 populated) · e(x) must be built for balance, not prediction</small>"]
+    PS --> SIX["<b>Six estimators, all scored against the same $1,794</b><br/><small>stratification · matching · IPW (+ trimming) · regression adjustment · AIPW (doubly robust — consistent if either nuisance model is right)</small>"]
+    SIX --> FIND(["<b>overlap matters more than estimator sophistication</b> — and every method reduces to e(x) and μ_t(x), where flexible ML takes over next"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class FIND k
 ```
 
 Three threads run through this lecture:
