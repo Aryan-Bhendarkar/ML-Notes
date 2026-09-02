@@ -265,18 +265,14 @@ costs $O(nd)$ per query (which is why it doesn't scale either, for a different r
 Strip away the specifics and every supervised learning system in this lecture — and in industry — is
 four boxes:
 
-```
-   ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐
-   │  MODEL   │───▶│   LOSS   │───▶│ OPTIMISER │───▶│  METRIC  │
-   │ f(x; θ)  │    │  L(y,ŷ)  │    │   find θ* │    │ is it    │
-   │          │    │          │    │           │    │  good?   │
-   │ what     │    │ what     │    │ how do we │    │ did it   │
-   │ shapes   │    │ counts   │    │ search?   │    │ work for │
-   │ can I    │    │ as       │    │           │    │ the      │
-   │ express? │    │ "wrong"? │    │           │    │ business?│
-   └──────────┘    └──────────┘    └───────────┘    └──────────┘
-        ▲                                                 │
-        └──────────── if the metric says no ──────────────┘
+```mermaid
+flowchart LR
+    M["<b>MODEL</b><br/>f(x; θ)<br/><small>what shapes can I express?</small>"]
+    L["<b>LOSS</b><br/>L(y, ŷ)<br/><small>what counts as wrong?</small>"]
+    O["<b>OPTIMISER</b><br/>find θ*<br/><small>how do we search?</small>"]
+    E["<b>METRIC</b><br/>is it good?<br/><small>did it work for the business?</small>"]
+    M --> L --> O --> E
+    E -.->|"if the metric says no"| M
 ```
 
 This lecture is boxes 2, 3 and 4 — and then three complete models (Naive Bayes, KNN, SVM) that fill
@@ -734,19 +730,17 @@ Three extra rows the slide didn't include, which you should carry anyway:
 
 ### A decision procedure
 
-```
-Are large errors genuinely more costly than proportionally?
-├── YES → MSE. (outages, safety margins, physical blowups)
-└── NO
-    ├── Do you have label noise / data-entry outliers?
-    │   ├── YES, lots  → MAE
-    │   └── YES, some  → Huber  ◀── the default when unsure
-    └── NO → MSE (it's the MLE under Gaussian, and converges fastest)
-
-Then always: is your reported *metric* the same as your training loss?
-If you train MSE but report MAE, expect the model to look worse than
-its loss curve suggests — you optimised for the mean and are being
-scored on the median.
+```mermaid
+flowchart TD
+    Q1["<b>Large errors genuinely more<br/>costly than proportional?</b>"]
+    Q1 -->|yes| MSE1["<b>MSE</b><br/><small>outages · safety margins · physical blow-ups</small>"]
+    Q1 -->|no| Q2["<b>Label noise /<br/>data-entry outliers?</b>"]
+    Q2 -->|"yes, lots"| MAE["<b>MAE</b>"]
+    Q2 -->|"yes, some"| HUB["<b>Huber</b><br/><small>the default when unsure</small>"]
+    Q2 -->|no| MSE2["<b>MSE</b><br/><small>MLE under Gaussian · converges fastest</small>"]
+    MSE1 & MAE & HUB & MSE2 --> CHK["<b>Then always:</b> is your reported <i>metric</i> the same as your training loss?<br/><small>train MSE but report MAE → the model looks worse than its loss curve: you optimised the mean, you're scored on the median</small>"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class Q1,Q2 ask
 ```
 
 ---
@@ -1636,37 +1630,20 @@ taken on a bad estimate can destabilise training permanently.
 
 ### The family tree
 
-```
-                     Gradient Descent
-                            │
-              ┌─────────────┴──────────────┐
-       (how much data?)              (how to step?)
-              │                             │
-     Batch → SGD → Mini-batch       ┌───────┴────────┐
-                                    │                │
-                              add MEMORY       adapt PER-PARAMETER
-                                    │                │
-                               Momentum          Adagrad
-                                    │           (decays to 0)
-                              Nesterov               │
-                                    │             RMSProp
-                                    │           (EMA instead
-                                    │            of sum)
-                                    └───────┬────────┘
-                                            │
-                                          ADAM
-                                     (1st + 2nd moment
-                                      + bias correction)
-                                            │
-                                          AdamW
-                                   (decouple weight decay)
-                                            │
-                                    Muon / SOAP  ⚠️ new, verify
-                                    (matrix-aware /
-                                     second-order)
-
-   Orthogonal to all of the above: LEARNING RATE SCHEDULES
-   warmup → cosine annealing → (optional) restarts
+```mermaid
+flowchart TD
+    GD(["<b>Gradient Descent</b>"])
+    GD -->|"how much data<br/>per step?"| DATA["Batch → SGD → <b>Mini-batch</b>"]
+    GD -->|"how to step?"| STEP{" "}
+    STEP -->|add memory| MEM["Momentum → Nesterov"]
+    STEP -->|"adapt per-parameter"| PP["Adagrad <small>(decays to 0)</small> → RMSProp <small>(EMA, not sum)</small>"]
+    MEM --> ADAM["<b>Adam</b><br/><small>1st + 2nd moment + bias correction</small>"]
+    PP --> ADAM
+    ADAM --> ADAMW["<b>AdamW</b> <small>— decouple weight decay</small>"]
+    ADAMW --> MUON["Muon / SOAP <small>⚠️ new, verify — matrix-aware / second-order</small>"]
+    ADAMW -.->|"orthogonal to all of the above"| SCH["<b>LR schedules</b><br/>warmup → cosine annealing → optional restarts"]
+    classDef run fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DATA,ADAMW run
 ```
 
 > 🎯 **What to actually use, asked and answered.** Default to **AdamW** with cosine annealing and a
@@ -2919,78 +2896,38 @@ fallback: The XOR worked example in §24 (separable in 3-D via x₁x₂, impossi
 
 Everything in this lecture hangs off one skeleton. Here it is, with the dependencies drawn.
 
+```mermaid
+flowchart TD
+    N["<b>What noise do I think<br/>my data has?</b>"]
+    N -->|Gaussian| MSE["MSE"]
+    N -->|Laplacian| MAE["MAE"]
+    N -->|"Bernoulli /<br/>categorical"| CE["BCE / CE"]
+    MSE -->|outliers| HUB["Huber"]
+    MAE -->|need smooth| HUB
+    CE -->|"want a margin,<br/>not a probability"| HINGE["Hinge"]
+    HUB --> ERM["<b>θ* = argmin (1/n) Σ L</b><br/><small>§9 · empirical risk minimisation</small>"]
+    HINGE --> ERM
+    ERM -->|"closed form<br/>(MSE + linear only)"| NORM["Normal equation · w = (XᵀX)⁻¹Xᵀy<br/><small>O(d³) — doesn't scale</small>"]
+    ERM -->|"iterative<br/>(everything else)"| OPT["Mini-batch GD + Adam / AdamW<br/>+ cosine schedule"]
+    NORM --> MET["<b>Did it actually work?</b><br/><small>METRIC ≠ LOSS — the loss can't tell you</small>"]
+    OPT --> MET
+    MET -->|classification| CM["confusion matrix → P / R / F1<br/>ROC-AUC (balanced) · <b>PR-AUC (imbalanced — use on fraud)</b>"]
+    MET -->|regression| RM["RMSE · MAE · R²"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class ERM k
+    class N,MET ask
 ```
-                        ┌─────────────────────────┐
-                        │  What noise do I think   │
-                        │  my data has?            │
-                        └───────────┬─────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        │ Gaussian                  │ Laplacian                 │ Bernoulli /
-        │                           │                           │ Categorical
-        ▼                           ▼                           ▼
-    ┌───────┐                  ┌───────┐                   ┌──────────┐
-    │  MSE  │                  │  MAE  │                   │ BCE / CE │
-    └───┬───┘                  └───┬───┘                   └────┬─────┘
-        │  outliers?               │  need smooth?              │  need a margin
-        │  ↓                       │  ↓                         │  instead of a
-        └──────► ┌───────┐ ◄───────┘                            │  probability?
-                 │ HUBER │                                      ▼
-                 └───┬───┘                                  ┌────────┐
-                     │                                      │ HINGE  │
-                     │                                      └───┬────┘
-                     └────────────┬─────────────────────────────┘
-                                  │  all of these are functions
-                                  │  you must MINIMISE
-                                  ▼
-                    ┌─────────────────────────────┐
-                    │   θ* = argmin  (1/n) Σ L     │   ← §9 ERM
-                    └──────────────┬──────────────┘
-                                   │
-              ┌────────────────────┴────────────────────┐
-              │ closed form                             │ iterative
-              │ (MSE + linear only)                     │ (everything)
-              ▼                                         ▼
-        Normal equation                        How much data per step?
-        w = (XᵀX)⁻¹Xᵀy                          all → Batch GD
-        O(d³), doesn't scale                    one → SGD
-                                                B   → MINI-BATCH ◀ what you run
-                                                          │
-                                          add memory ─────┼───── adapt per-parameter
-                                          Momentum        │       Adagrad → RMSProp
-                                                    ╲     │     ╱
-                                                     ╲    │    ╱
-                                                      ADAM → AdamW
-                                                       + cosine schedule
-                                                          │
-                                                          ▼
-                                            ┌──────────────────────────┐
-                                            │  Did it actually work?   │  ← the loss
-                                            │  METRIC ≠ LOSS           │    cannot
-                                            └────────────┬─────────────┘    tell you
-                                                         │
-                                 ┌───────────────────────┼──────────────────┐
-                                 │ classification        │                  │ regression
-                                 ▼                       ▼                  ▼
-                        Confusion matrix         threshold sweep      RMSE · MAE · R²
-                        ↓                        ↓
-                   P / R / F1              ROC-AUC  (balanced)
-                                           PR-AUC   (imbalanced) ◀ use this on fraud
 
+**Three models, three philosophies — all fitting the same pipeline.**
 
-   THREE MODELS, THREE PHILOSOPHIES, ALL FITTING THE SAME PIPELINE:
-
-   NAIVE BAYES   models P(x|y) — generative. Counting, one pass, no optimiser at all.
-                 Wins on tiny data and huge d. Caps out early.
-
-   KNN           models nothing. Stores everything, decides at query time.
-                 Zero training cost, O(nd) inference, dies in high dimensions.
-
-   SVM           models the boundary — discriminative. And it is EXACTLY
-                 hinge loss (§8) + L2 regularisation, which means it plugs
-                 straight into the optimiser stack above.
-                 └── kernel trick: same algorithm, richer geometry, no extra cost.
-```
+- **Naive Bayes** models $P(x \mid y)$ — generative. Counting, one pass, no optimiser at
+  all. Wins on tiny data and huge $d$; caps out early.
+- **KNN** models nothing. Stores everything, decides at query time. Zero training cost,
+  $O(nd)$ inference, dies in high dimensions.
+- **SVM** models the boundary — discriminative. It is *exactly* hinge loss (§8) + L2
+  regularisation, so it plugs straight into the optimiser stack above. The kernel trick
+  is the same algorithm with richer geometry at no extra cost.
 
 ### The five threads that run through the whole lecture
 

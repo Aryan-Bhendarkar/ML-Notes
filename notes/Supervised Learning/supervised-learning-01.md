@@ -501,16 +501,30 @@ meaningless, and it would swing wildly with the random seed. Stratification pins
 **Temporal splits for time-series data.** If your data has a time dimension, a random split lets the
 model train on Thursday and predict Wednesday. In production it will only ever predict *forward*.
 
-```
-   RANDOM SPLIT ON TIME-SERIES DATA — WRONG
-   Jan  Feb  Mar  Apr  May  Jun  Jul  Aug
-   [T][V][T][T][V][T][V][T][T][V][T][T][V][T]     ← train and val interleaved
-        ▲ the model sees June while predicting March
-
-   TEMPORAL SPLIT — CORRECT
-   Jan  Feb  Mar  Apr  May  Jun  Jul  Aug
-   [────── train ──────][── val ──][─ test ─]
-                        ▲ every evaluation is strictly in the future
+```svg
+<svg viewBox="0 0 620 210" role="img" aria-label="Random split versus temporal split on time-series data" font-family="system-ui,sans-serif">
+  <style>
+    .m{fill:#7C7361;font-size:11px} .h{fill:#EDE6D7;font-size:12.5px;font-weight:700}
+    .tr{fill:#2C2820;stroke:#4C4739} .va{fill:#1E3025;stroke:#4FA073} .te{fill:#3A2A22;stroke:#E89170}
+    .cap{fill:#B4AA95;font-size:11.5px} .warn{fill:#E89170;font-size:11.5px}
+  </style>
+  <text class="h" x="10" y="16">Random split on time-series data — <tspan fill="#E89170">WRONG</tspan></text>
+  <g transform="translate(10,26)">
+    <g class="m">
+      <text x="26" y="10">Jan</text><text x="90" y="10">Feb</text><text x="154" y="10">Mar</text><text x="218" y="10">Apr</text><text x="282" y="10">May</text><text x="346" y="10">Jun</text><text x="410" y="10">Jul</text><text x="474" y="10">Aug</text>
+    </g>
+    <g>
+      <rect class="tr" x="10" y="16" width="52" height="24"/><rect class="va" x="74" y="16" width="52" height="24"/><rect class="tr" x="138" y="16" width="52" height="24"/><rect class="tr" x="202" y="16" width="52" height="24"/><rect class="va" x="266" y="16" width="52" height="24"/><rect class="tr" x="330" y="16" width="52" height="24"/><rect class="va" x="394" y="16" width="52" height="24"/><rect class="tr" x="458" y="16" width="52" height="24"/>
+    </g>
+    <text class="warn" x="10" y="56">▲ the model is trained on June while being asked to predict March</text>
+  </g>
+  <text class="h" x="10" y="118">Temporal split — <tspan fill="#8CDCA6">CORRECT</tspan></text>
+  <g transform="translate(10,128)">
+    <rect class="tr" x="10" y="16" width="300" height="24"/><rect class="va" x="314" y="16" width="120" height="24"/><rect class="te" x="438" y="16" width="80" height="24"/>
+    <text class="cap" x="160" y="32" text-anchor="middle" fill="#EDE6D7">train</text><text class="cap" x="374" y="32" text-anchor="middle" fill="#EDE6D7">val</text><text class="cap" x="478" y="32" text-anchor="middle" fill="#EDE6D7">test</text>
+    <text class="cap" x="10" y="56">▲ every evaluation is strictly in the future — the way production works</text>
+  </g>
+</svg>
 ```
 
 The random version reports a wonderful score and then fails in production, because it was evaluated
@@ -887,23 +901,19 @@ The two routes agree, which is the decomposition working.
 The slide's second figure plots three curves against **Model Complexity**: Bias² falling, Variance
 rising, and Total Error as a U-shape with a dotted line at "Optimum Model Complexity".
 
+```mermaid
+xychart-beta
+    title "Total error is U-shaped in model complexity"
+    x-axis "model complexity" 1 --> 12
+    y-axis "error" 0 --> 5
+    line [0.15, 0.45, 0.95, 1.6, 2.3, 3.0, 3.7, 4.2, 4.6]
+    line [4.4, 2.7, 1.7, 1.05, 0.7, 0.48, 0.34, 0.26, 0.2]
+    line [4.7, 3.4, 2.9, 2.75, 3.15, 3.65, 4.2, 4.6, 5.0]
 ```
-   error
-     ▲
-     │╲                                              ╱ Total Error
-     │ ╲                                          ╱
-     │  ╲                                      ╱
-     │   ╲            ┌ optimum ┐          ╱
-     │    ╲___        │         │      ╱          ╱ Variance
-     │        ╲___    │         │  ╱          ╱
-     │            ╲___│_________│____     ╱
-     │                ╲             ╲ ╱
-     │                 ╲         ╱   ╲
-     │                  ╲____╱        ╲______  Bias²
-     └────────────────────┼──────────────────────────▶
-                          ▲                  model complexity
-                     the sweet spot
-```
+
+**Green rises = variance. Orange falls = bias². Blue = their sum**, plus irreducible
+noise — lowest at the *sweet spot*, where a small increase in one is exactly offset by a
+small decrease in the other.
 
 Three things to take from it:
 
@@ -1000,25 +1010,27 @@ The slide bolds this and doesn't define it. It's the most actionable idea in the
 It answers a question nothing else answers cleanly: **will collecting more data help?** That is
 usually the most expensive decision on the table, and guessing at it is costly.
 
+```mermaid
+xychart-beta
+    title "High bias — the curves meet, and meet high"
+    x-axis "training-set size" 0 --> 10
+    y-axis "error" 0 --> 1
+    line [0.05, 0.25, 0.38, 0.45, 0.48]
+    line [0.92, 0.68, 0.58, 0.53, 0.51]
 ```
-   HIGH BIAS                          HIGH VARIANCE
-   error                              error
-     ▲                                  ▲
-     │                                  │╲
-     │   ╭──────── validation           │ ╲______ validation
-     │  ╱                               │        ╲______
-     │ ╱                                │               ╲___
-     │╱  ╭──────── training             │
-     ├───╯                              │      ___________ training
-     │   both plateau HIGH              │   ╱
-     │   and CLOSE together             │ ╱   big persistent GAP
-     └──────────────────▶               └──────────────────▶
-        training set size                  training set size
 
-   → More data will NOT help.          → More data WILL help.
-     The curves have already met.        The gap is still closing.
-     Increase capacity instead.
+```mermaid
+xychart-beta
+    title "High variance — a large, persistent gap"
+    x-axis "training-set size" 0 --> 10
+    y-axis "error" 0 --> 1
+    line [0.03, 0.04, 0.05, 0.05, 0.06]
+    line [0.62, 0.46, 0.39, 0.35, 0.33]
 ```
+
+**Green = training error, orange = validation error.** *Left:* both plateau high and
+close together — more data will **not** help, you are capacity-limited. *Right:* the gap
+is still wide and still closing — more data (or stronger regularisation) **will** help.
 
 **How to read it:**
 
@@ -1364,20 +1376,37 @@ The diamond-vs-circle figure is the same fact seen visually. Both problems can b
 The loss contours are ellipses centred on the OLS solution. The regularised answer is where the
 outermost ellipse first touches the budget region.
 
-```
-        L1 (Lasso)                          L2 (Ridge)
-            w₂                                  w₂
-            ▲                                   ▲
-            │    ╱ loss contour                 │    ╱ loss contour
-         ╱╲ │  ╱                             ___│  ╱
-        ╱  ╲│╱                              ╱   │╱
-   ─────◆───┼────────▶ w₁              ────(────●───)──────▶ w₁
-       ╱ ╲  │╲                              ╲___│  ╲
-      ╱   ╲ │  ╲                                │    ╲
-            │                                   │
-   Touches at a CORNER                  Touches on a SMOOTH ARC
-   → the corner sits ON an axis         → generically no coordinate
-   → w₂ = 0 EXACTLY                       is exactly zero
+```svg
+<svg viewBox="0 0 660 296" role="img" aria-label="L1 versus L2 constraint geometry" font-family="system-ui,sans-serif">
+  <style>
+    .ax{stroke:#4C4739;stroke-width:1.4} .tk{fill:#7C7361;font-size:12px}
+    .l1{fill:#1E3025;stroke:#8CDCA6;stroke-width:1.8} .l2{fill:#1E3025;stroke:#4FA073;stroke-width:1.6}
+    .ct{fill:none;stroke:#E6BA55;stroke-width:1.4} .hit{fill:#E89170}
+    .ttl{fill:#EDE6D7;font-size:13.5px;font-weight:700} .lab{fill:#EDE6D7;font-size:12.5px} .sub{fill:#B4AA95;font-size:11px}
+  </style>
+  <g transform="translate(30,26)">
+    <text class="ttl" x="140" y="0" text-anchor="middle">L1 (Lasso) — a diamond</text>
+    <line class="ax" x1="10" y1="150" x2="270" y2="150"/><line class="ax" x1="140" y1="24" x2="140" y2="250"/>
+    <text class="tk" x="274" y="154">w₁</text><text class="tk" x="132" y="30" text-anchor="end">w₂</text>
+    <polygon class="l1" points="140,88 198,150 140,212 82,150"/>
+    <ellipse class="ct" cx="196" cy="70" rx="66" ry="42" transform="rotate(-27 196 70)"/>
+    <ellipse class="ct" cx="176" cy="86" rx="40" ry="25" transform="rotate(-27 176 86)"/>
+    <circle class="hit" cx="140" cy="88" r="4.5"/>
+    <text class="lab" x="140" y="236" text-anchor="middle">first touch is a <tspan fill="#E89170">corner</tspan>, on an axis</text>
+    <text class="sub" x="140" y="254" text-anchor="middle">so w₁ = 0 exactly — the weight is dropped</text>
+  </g>
+  <g transform="translate(360,26)">
+    <text class="ttl" x="140" y="0" text-anchor="middle">L2 (Ridge) — a circle</text>
+    <line class="ax" x1="10" y1="150" x2="270" y2="150"/><line class="ax" x1="140" y1="24" x2="140" y2="250"/>
+    <text class="tk" x="274" y="154">w₁</text><text class="tk" x="132" y="30" text-anchor="end">w₂</text>
+    <circle class="l2" cx="140" cy="150" r="60"/>
+    <ellipse class="ct" cx="232" cy="74" rx="66" ry="42" transform="rotate(-27 232 74)"/>
+    <ellipse class="ct" cx="210" cy="90" rx="40" ry="25" transform="rotate(-27 210 90)"/>
+    <circle class="hit" cx="182" cy="106" r="4.5"/>
+    <text class="lab" x="140" y="236" text-anchor="middle">first touch is on a <tspan fill="#8CDCA6">smooth arc</tspan>, off the axes</text>
+    <text class="sub" x="140" y="254" text-anchor="middle">both weights shrink; neither is exactly 0</text>
+  </g>
+</svg>
 ```
 
 **A circle has no corners, so a tangent point almost never lands exactly on an axis. A diamond's
@@ -1630,15 +1659,17 @@ flowchart TD
     P3(["<b>3 · Fit, then diagnose</b>"])
     P1 -->|"define X, Y, hypothesis space H"| P2
     P2 -->|"split first · train / val / test<br/>fitted transforms live in the Pipeline"| P3
-    P3 -->|"both high → bias (add capacity)<br/>val ≫ train → variance (regularise / more data)"| SPLIT{{"which Y?"}}
+    P3 -->|"both high → bias (add capacity)<br/>val ≫ train → variance (regularise / more data)"| SPLIT["<b>which Y?</b>"]
     SPLIT -->|continuous| CONT["<b>Linear Regression</b><br/>ŷ = wᵀx + b · closed form · 4 assumptions"]
     SPLIT -->|binary| BIN["<b>Logistic Regression</b><br/>σ(wᵀx + b) · iterative · free threshold"]
     CONT -->|"multicollinearity<br/>breaks (XᵀX)⁻¹"| REG["<b>Regularisation</b> — λ is the U-curve dial<br/>Ridge L2 shrinks · Lasso L1 zeros · Elastic both"]
     BIN --> REG
     REG --> NEXT(["<b>Part 2 →</b> losses · optimisers · metrics · 3 models"])
     classDef step fill:#2C2820,stroke:#8CDCA6,stroke-width:1.6px,color:#EDE6D7
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
     classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
     class P1,P2,P3 step
+    class SPLIT ask
     class NEXT term
 ```
 

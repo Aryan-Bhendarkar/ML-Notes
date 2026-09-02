@@ -36,6 +36,19 @@ const THEME = {
   flowchart: { curve: 'linear', htmlLabels: true, padding: 10, nodeSpacing: 34, rankSpacing: 40, useMaxWidth: true },
   sequence: { useMaxWidth: true, mirrorActors: false },
   gantt: { useMaxWidth: true },
+  xyChart: {
+    width: 560, height: 340, showTitle: true,
+    plotReservedSpacePercent: 55,
+    xAxis: { labelFontSize: 12, titleFontSize: 13 },
+    yAxis: { labelFontSize: 12, titleFontSize: 13 },
+  },
+};
+// distinct series colours for xychart-beta (it has no legend — name the lines in a caption)
+THEME.themeVariables.xyChart = {
+  backgroundColor: '#16140F', titleColor: '#EDE6D7',
+  xAxisLabelColor: '#B4AA95', xAxisTitleColor: '#7C7361', xAxisLineColor: '#4C4739', xAxisTickColor: '#4C4739',
+  yAxisLabelColor: '#B4AA95', yAxisTitleColor: '#7C7361', yAxisLineColor: '#4C4739', yAxisTickColor: '#4C4739',
+  plotColorPalette: '#8CDCA6,#E89170,#93B0D6,#E6BA55',
 };
 
 function collect() {

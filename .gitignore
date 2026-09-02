@@ -18,3 +18,4 @@ Thumbs.db
 
 # dev scratch
 scratch_*
+.tmp_*

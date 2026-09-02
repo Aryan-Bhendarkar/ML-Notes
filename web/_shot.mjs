@@ -33,6 +33,36 @@ if (mode === 'diagram') {
   const box = await (await p.$('div')).boundingBox();
   await p.screenshot({ path: out, clip: { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, 4000) } });
   console.log(`wrote ${out}  (${id}, ${Math.round(box.width)}×${Math.round(box.height)})`);
+} else if (mode === 'sheet') {
+  // contact sheet: every cached diagram whose hash appears in <slug>.md's mermaid blocks,
+  // or (no slug) every cached diagram — stacked in one themed column.
+  const dir = path.join(HERE, '.diagrams');
+  const slug = process.argv[3];
+  const out = process.argv[4] || '../scratch_sheet.png';
+  const width = +(process.argv[5] || 760);
+  let hashes = fs.readdirSync(dir).filter(f => f.endsWith('.svg')).map(f => f.replace('.svg', ''));
+  let labels = {};
+  if (slug && slug !== 'all') {
+    const modDir = path.join(HERE, '..', 'notes', slug);
+    const want = [];
+    for (const f of fs.readdirSync(modDir).filter(x => x.endsWith('.md'))) {
+      const md = fs.readFileSync(path.join(modDir, f), 'utf8').replace(/\r\n?/g, '\n');
+      const heads = md.split('\n');
+      for (const m of md.matchAll(/```mermaid\n([\s\S]*?)```/g)) {
+        const h = (await import('node:crypto')).createHash('sha1').update(m[1].trim()).digest('hex').slice(0, 16);
+        const upto = md.slice(0, m.index).split('\n');
+        const head = [...upto].reverse().find(l => /^#{2,4} /.test(l)) || '';
+        want.push(h); labels[h] = `${f}  ·  ${head.replace(/^#+ /, '').slice(0, 60)}`;
+      }
+    }
+    hashes = want;
+  }
+  const svgs = hashes.map(h => `<figure style="margin:0 0 26px"><div style="font:11px/1.4 system-ui;color:#7C7361;margin-bottom:6px">${labels[h] || h}</div>${fs.readFileSync(path.join(dir, h + '.svg'), 'utf8')}</figure>`).join('');
+  const p = await b.newPage({ viewport: { width: width + 90, height: 1200 }, deviceScaleFactor: 1.5 });
+  await p.setContent(FRAME(width).replace('__C__', svgs));
+  await p.waitForTimeout(200);
+  await p.screenshot({ path: out, fullPage: true });
+  console.log(`wrote ${out}  (${hashes.length} diagrams)`);
 } else {
   const [slug, what, out = '../scratch_shot.png', width = '820'] = process.argv.slice(3);
   const p = await b.newPage({ viewport: { width: +width + 60, height: 1100 }, deviceScaleFactor: 2 });

@@ -57,6 +57,12 @@ function renderMath(m) {
 
 // ── mermaid diagrams: pulled out before markdown, restored as inline SVG ──
 function extractMermaid(src, store) {
+  // hand-authored ```svg blocks pass straight through, wrapped as a diagram figure
+  src = src.replace(/```svg\n([\s\S]*?)```/g, (_, body) => {
+    const i = store.length;
+    store.push({ raw: body.trim() });
+    return `\n\nMERMAIDPLACEHOLDER${i}E\n\n`;
+  });
   return src.replace(/```mermaid\n([\s\S]*?)```/g, (_, body) => {
     const i = store.length;
     store.push(body.trim());
@@ -64,6 +70,7 @@ function extractMermaid(src, store) {
   });
 }
 function renderMermaid(code, diagrams) {
+  if (code && code.raw) return `<figure class="diagram diagram-svg">${code.raw}</figure>`;
   const svg = diagrams && diagrams[diagHash(code)];
   if (svg) return `<figure class="diagram">${svg}</figure>`;
   return `<figure class="diagram diagram-raw"><pre>${esc(code)}</pre></figure>`;

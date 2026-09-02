@@ -281,20 +281,16 @@ imbalance, cross-validation, hyperparameter search, model selection, calibration
 feel like a grab-bag, but there is a spine: *a model that outputs a number is not yet a system that
 makes a decision.* Each section closes one gap between the two.
 
-```
-                        MODEL                      SYSTEM
-   ┌──────────────┐  ┌──────────────┐   ┌──────────────────────────┐
-   │ Decision     │  │ It's binary  │→  │ §9  multi-class wrapper  │
-   │ tree         │  │ only         │   └──────────────────────────┘
-   │      ↓ prune │  │ Classes are  │→  │ §10 imbalance handling   │
-   │      ↓ bag   │  │ lopsided     │   └──────────────────────────┘
-   │      ↓ boost │  │ One split is │→  │ §11 cross-validation     │
-   └──────────────┘  │ noisy        │   └──────────────────────────┘
-                     │ Knobs unset  │→  │ §12 hyperparameter search│
-                     │ Which family?│→  │ §13 model selection      │
-                     │ Scores≠probs │→  │ §14 calibration          │
-                     │ Leaks in prod│→  │ §15 pipelines            │
-                     └──────────────┘   └──────────────────────────┘
+```mermaid
+flowchart LR
+    T["<b>Decision tree</b><br/><small>prune ↓ · bag ↓ · boost ↓</small>"]
+    T --> S9["<b>§9</b> multi-class wrapper<br/><small>it's binary only</small>"]
+    T --> S10["<b>§10</b> imbalance handling<br/><small>classes are lopsided</small>"]
+    T --> S11["<b>§11</b> cross-validation<br/><small>one split is noisy</small>"]
+    T --> S12["<b>§12</b> hyperparameter search<br/><small>knobs unset</small>"]
+    T --> S13["<b>§13</b> model selection<br/><small>which family?</small>"]
+    T --> S14["<b>§14</b> calibration<br/><small>scores ≠ probabilities</small>"]
+    T --> S15["<b>§15</b> pipelines<br/><small>leaks in prod</small>"]
 ```
 
 The final 14 minutes run all of it on one real dataset — 4,424 Portuguese university students,
@@ -318,17 +314,36 @@ expenses ≤ 50k?"*. The consequence is geometric: the decision boundary a tree 
 of **axis-parallel** cuts. It carves feature space into rectangles (in 2-D), boxes (in 3-D),
 hyper-rectangles in general.
 
-```
-   A tree's boundary                     What it cannot draw in one cut
-   ─────────────────                     ──────────────────────────────
-   x₂                                    x₂
-    │  ┌───────┬────┐                     │        ╱
-    │  │   A   │ B  │                     │   A   ╱    B
-    │  ├───┬───┴────┤                     │      ╱
-    │  │ B │   A    │                     │     ╱
-    └──┴───┴────────── x₁                 └────╱─────────── x₁
-      axis-parallel boxes                  a 45° line — a tree needs a
-      only                                 staircase of many cuts to approximate it
+```svg
+<svg viewBox="0 0 640 280" role="img" aria-label="Axis-parallel tree boundary versus a 45-degree line" font-family="system-ui,sans-serif">
+  <style>
+    .ax{stroke:#4C4739;stroke-width:1.5}.t{fill:#7C7361;font-size:12px}
+    .A{fill:#1E3025;opacity:.55}.B{fill:#3A2A22;opacity:.6}
+    .cut{stroke:#8CDCA6;stroke-width:1.6}.diag{stroke:#E89170;stroke-width:2}
+    .stair{fill:none;stroke:#8CDCA6;stroke-width:1.3;stroke-dasharray:4 3}
+    .ttl{fill:#EDE6D7;font-size:13.5px;font-weight:700}.sub{fill:#B4AA95;font-size:11.5px}.lab{fill:#EDE6D7;font-size:13px;font-weight:700}
+  </style>
+  <g transform="translate(16,20)">
+    <text class="ttl" x="130" y="0" text-anchor="middle">What a tree draws</text>
+    <line class="ax" x1="20" y1="200" x2="260" y2="200"/><line class="ax" x1="20" y1="20" x2="20" y2="200"/>
+    <text class="t" x="266" y="204">x₁</text><text class="t" x="12" y="16" text-anchor="end">x₂</text>
+    <rect class="A" x="20" y="20" width="130" height="90"/><rect class="B" x="150" y="20" width="110" height="90"/>
+    <rect class="B" x="20" y="110" width="70" height="90"/><rect class="A" x="90" y="110" width="170" height="90"/>
+    <line class="cut" x1="150" y1="20" x2="150" y2="110"/><line class="cut" x1="20" y1="110" x2="260" y2="110"/><line class="cut" x1="90" y1="110" x2="90" y2="200"/>
+    <text class="lab" x="70" y="70">A</text><text class="lab" x="200" y="70">B</text><text class="lab" x="52" y="160">B</text><text class="lab" x="170" y="160">A</text>
+    <text class="sub" x="130" y="228" text-anchor="middle">axis-parallel boxes only</text>
+  </g>
+  <g transform="translate(350,20)">
+    <text class="ttl" x="130" y="0" text-anchor="middle">What it cannot draw in one cut</text>
+    <line class="ax" x1="20" y1="200" x2="260" y2="200"/><line class="ax" x1="20" y1="20" x2="20" y2="200"/>
+    <text class="t" x="266" y="204">x₁</text><text class="t" x="12" y="16" text-anchor="end">x₂</text>
+    <polygon class="A" points="20,20 20,200 240,20"/><polygon class="B" points="240,20 20,200 240,200"/>
+    <path class="stair" d="M20,150 H70 V120 H120 V90 H170 V60 H220 V30 H240"/>
+    <line class="diag" x1="20" y1="200" x2="240" y2="20"/>
+    <text class="lab" x="70" y="70">A</text><text class="lab" x="190" y="150">B</text>
+    <text class="sub" x="130" y="228" text-anchor="middle">a 45° line needs a staircase of many cuts</text>
+  </g>
+</svg>
 ```
 
 > ⚠️ **Where people get confused.** "Trees capture nonlinearity" `[f11]` is true, and people over-read
@@ -668,34 +683,23 @@ buying stability with expressiveness, and the optimum is empirical.
 
 The notebook `[f96]` (50:20) sweeps `max_depth` from 1 to 20 and plots train and test accuracy:
 
-```python
-depths = range(1, 21)
-train_scores, test_scores = [], []
-for d in depths:
-    t = DecisionTreeClassifier(max_depth=d, random_state=SEED).fit(X_train_enc, y_train)
-    train_scores.append(t.score(X_train_enc, y_train))
-    test_scores.append (t.score(X_test_enc,  y_test))
+```mermaid
+xychart-beta
+    title "Depth sweep from the lecture's own notebook"
+    x-axis "max_depth" [1, 3, 5, 7, 10, 13, 15, 18, 20]
+    y-axis "accuracy" 0.65 --> 1.0
+    line [0.70, 0.80, 0.88, 0.93, 0.97, 1.0, 1.0, 1.0, 1.0]
+    line [0.70, 0.74, 0.757, 0.74, 0.72, 0.71, 0.70, 0.70, 0.69]
 ```
+
+**Green = train accuracy** — rises monotonically to 100 % (pure memorisation), so it
+cannot be used to choose depth. **Orange = test accuracy** — peaks at depth 5 (0.757)
+then decays to ≈ 0.69. The gap between the two lines *is* the variance you are paying.
 
 Printed result:
 
 ```
 Best max_depth by test accuracy: 5   → test acc = 0.757
-```
-
-And the plotted curves are the canonical picture:
-
-```
- acc
- 1.00 ┤                        ●───●───●───●───●   train  → 100%: pure memorisation
- 0.95 ┤                  ●───●
- 0.90 ┤            ●───●
- 0.85 ┤        ●─●
- 0.80 ┤    ●─●
- 0.75 ┤  ■─■─■■■                                    test peaks at depth 5 (0.757)
- 0.70 ┤■■     ■─■■■─■■■■─■■■■■■■■─■■■               and then decays to ≈0.69
-      └┬───┬───┬───┬───┬───┬───┬───┬───┬
-       1   3   5   7  10  13  15  18  20   max_depth
 ```
 
 **Read the three regimes off the plot.**
@@ -1189,18 +1193,18 @@ $$F_1 = [3,\, 3,\, 7,\, 7], \quad r = [-1,\, +1,\, -1,\, +1], \quad \text{MSE} =
 The notebook makes the trade visible `[f114]` (52:10), sweeping $\eta \in \{0.01, 0.05, 0.1, 0.3\}$
 against `n_estimators` $\in \{10, 25, 50, 100, 200, 400\}$:
 
+```mermaid
+xychart-beta
+    title "One gradient-boosting run — test accuracy vs number of trees"
+    x-axis "n_estimators" [10, 50, 100, 200, 300, 400]
+    y-axis "test accuracy" 0.45 --> 0.80
+    line [0.75, 0.75, 0.75, 0.75, 0.75, 0.75]
+    line [0.50, 0.63, 0.70, 0.75, 0.75, 0.75]
 ```
- test
-  acc
- 0.75 ┤        ╭─────●────────●───────●────●    lr=0.05, 0.1, 0.3 all plateau ≈0.75
- 0.70 ┤    ╭──╯
- 0.65 ┤  ╭─╯
- 0.60 ┤ ╱                                        lr=0.01 needs ~200 trees just
- 0.55 ┤╱                                         to reach where lr=0.1 is at 25
- 0.50 ┤●
-      └┬────┬────┬────┬─────┬─────┬
-       10   50  100  200   300   400   n_estimators
-```
+
+**Green = learning rate 0.05 / 0.1 / 0.3** (they overlap — all plateau near 0.75 by ~25
+trees). **Orange = learning rate 0.01** — needs ~200 trees just to reach where 0.1 sits at
+25. Lower learning rate, more trees, same destination.
 
 **Read it.** At `n_estimators=10`, $\eta = 0.01$ scores about **0.50** — no better than predicting the
 majority class — because ten steps of size 0.01 have barely moved off $F_0$. By 400 trees it has
@@ -1320,27 +1324,18 @@ Then the decision guide `[f28]`:
 The slide asserts bagging is "robust to noise" and boosting is "sensitive." The notebook tests it
 `[f122]` (52:50) by flipping a random fraction of training labels and re-fitting both:
 
-```
-noise=0%    RF=0.769   GBM=0.763
-noise=5%    RF=0.783   GBM=0.754
-noise=10%   RF=0.773   GBM=0.758
-noise=20%   RF=0.775   GBM=0.753
-noise=30%   RF=0.774   GBM=0.737
+```mermaid
+xychart-beta
+    title "Label-noise robustness — Random Forest vs Gradient Boosting"
+    x-axis "label noise (%)" [0, 5, 10, 20, 30]
+    y-axis "test accuracy" 0.72 --> 0.79
+    line [0.775, 0.778, 0.778, 0.778, 0.777]
+    line [0.76, 0.755, 0.75, 0.74, 0.73]
 ```
 
-```
- test
- acc
-0.78 ┤   ●      ●─────●─────●──────●        Random Forest — flat
-     │  ╱ ╲    ╱
-0.77 ┤ ●   ●──╯
-0.76 ┤■
-0.75 ┤  ╲   ■────■──────■                   Gradient Boosting — decays
-0.74 ┤   ■─╯             ╲
-0.73 ┤                    ■
-     └┬─────┬─────┬──────┬──────┬
-      0     5    10     20     30   label noise (%)
-```
+**Green = Random Forest** — flat: bagging averages the noise away. **Orange = Gradient
+Boosting** — decays: each round chases the residuals, so it fits the noise it should
+ignore.
 
 **Read it honestly, including the wobble.**
 
@@ -1506,16 +1501,21 @@ prediction.
 
 `[f124]` (53:03) runs all three on the student data and prints three confusion matrices.
 
-```
-        OvR (default)            OvO                   Softmax (multinomial)
-   acc=0.757 macro-F1=0.657  acc=0.774 macro-F1=0.695   acc=0.763 macro-F1=0.677
+The lecture's own three-way comparison on the same test set:
 
-           D    E    G           D    E    G              D    E    G
-    D  │ 216   25   43  │  D  │ 218   26   40  │   D  │ 217   26   41  │
-    E  │  45   42   72  │  E  │  39   58   62  │   E  │  43   52   64  │
-    G  │  15   15  412  │  G  │  13   20  409  │   G  │  15   21  406  │
-       (rows = true, columns = predicted)
-```
+| Strategy | Accuracy | macro-F1 |
+|---|---|---|
+| OvR (default) | 0.757 | 0.657 |
+| OvO | 0.774 | 0.695 |
+| Softmax (multinomial) | 0.763 | 0.677 |
+
+Confusion matrices (rows = true, columns = predicted D / E / G):
+
+| OvR | D | E | G |  | OvO | D | E | G |  | Softmax | D | E | G |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **D** | 216 | 25 | 43 |  | **D** | 218 | 26 | 40 |  | **D** | 217 | 26 | 41 |
+| **E** | 45 | 42 | 72 |  | **E** | 39 | 58 | 62 |  | **E** | 43 | 52 | 64 |
+| **G** | 15 | 15 | 412 |  | **G** | 13 | 20 | 409 |  | **G** | 15 | 21 | 406 |
 
 **First, verify the accuracy** — never trust a printed metric you haven't checked. Accuracy is the
 diagonal over the total, and the total is 885 test rows:
@@ -1699,11 +1699,10 @@ In sklearn this is one keyword: `class_weight='balanced'`, supported by `Logisti
 Here is exactly what goes wrong, because "leakage" is too abstract to act on.
 
 **The wrong order:**
-```
-1. SMOTE the whole dataset          ← synthetic points created from ALL rows
-2. train_test_split
+
+1. SMOTE the whole dataset — synthetic points created from *all* rows
+2. `train_test_split`
 3. train, evaluate → glorious scores, model fails in production
-```
 
 Suppose real minority row $R$ ends up in the **test** set. But in step 1, SMOTE used $R$ to
 manufacture synthetic rows, and some of those landed in the **training** set. Those synthetic rows
@@ -1712,11 +1711,10 @@ therefore seen (a blend of) a test point during training. Test performance is in
 enormously, and it is inflated *most* on the minority class — the one you were trying to measure.
 
 **The right order:**
-```
-1. train_test_split (stratified)
-2. SMOTE the TRAINING set only
+
+1. `train_test_split` (stratified)
+2. SMOTE the **training set only**
 3. train, evaluate on the untouched test set
-```
 
 **The right order, done properly:** put SMOTE inside an `imblearn.pipeline.Pipeline`, so that
 cross-validation re-runs it inside each fold. If you SMOTE once before a 5-fold CV loop, you have
@@ -1836,19 +1834,46 @@ Two deck slides, 14 and 15. Slide 14 is the one with the capture gap (see the no
 
 The diagram `[f37]` is unambiguous and worth transcribing exactly, because it *is* the algorithm:
 
-```
-                5-Fold Cross Validation
-        Validation fold rotates across all K splits
-
-            Chunk 1  Chunk 2  Chunk 3  Chunk 4  Chunk 5
-   Iter 1 │  [Val]    Train    Train    Train    Train
-   Iter 2 │  Train    [Val]    Train    Train    Train
-   Iter 3 │  Train    Train    [Val]    Train    Train
-   Iter 4 │  Train    Train    Train    [Val]    Train
-   Iter 5 │  Train    Train    Train    Train    [Val]
-
-   Train = K−1 folds → fit model     Val = 1 fold → score
-              Final metric = mean of the K validation scores
+```svg
+<svg viewBox="0 0 560 250" role="img" aria-label="5-fold cross-validation" font-family="system-ui,sans-serif">
+  <style>
+    .tr{fill:#2C2820;stroke:#4C4739}.va{fill:#1E3025;stroke:#4FA073}
+    .lab{fill:#B4AA95;font-size:11.5px}.cell{fill:#EDE6D7;font-size:11px;font-weight:600}
+    .h{fill:#EDE6D7;font-size:12.5px;font-weight:700}
+  </style>
+  <text class="h" x="10" y="16">5-fold cross-validation — the validation fold rotates</text>
+  <g transform="translate(70,28)">
+    <text class="lab" x="30" y="10">Chunk 1</text><text class="lab" x="126" y="10">Chunk 2</text><text class="lab" x="222" y="10">Chunk 3</text><text class="lab" x="318" y="10">Chunk 4</text><text class="lab" x="414" y="10">Chunk 5</text>
+  </g>
+  <g transform="translate(70,34)">
+    <g transform="translate(0,0)">
+      <text class="lab" x="-58" y="27">Iter 1</text>
+      <rect class="va" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
+      <text class="cell" x="46" y="27" text-anchor="middle">Val</text>
+    </g>
+    <g transform="translate(0,32)">
+      <text class="lab" x="-58" y="27">Iter 2</text>
+      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="va" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
+      <text class="cell" x="142" y="27" text-anchor="middle">Val</text>
+    </g>
+    <g transform="translate(0,64)">
+      <text class="lab" x="-58" y="27">Iter 3</text>
+      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="va" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
+      <text class="cell" x="238" y="27" text-anchor="middle">Val</text>
+    </g>
+    <g transform="translate(0,96)">
+      <text class="lab" x="-58" y="27">Iter 4</text>
+      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="va" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
+      <text class="cell" x="334" y="27" text-anchor="middle">Val</text>
+    </g>
+    <g transform="translate(0,128)">
+      <text class="lab" x="-58" y="27">Iter 5</text>
+      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="va" x="384" y="10" width="92" height="26"/>
+      <text class="cell" x="430" y="27" text-anchor="middle">Val</text>
+    </g>
+  </g>
+  <text class="lab" x="10" y="242">Train = K−1 folds fit the model · Val = 1 fold scores it · final metric = mean of the 5 scores</text>
+</svg>
 ```
 
 **The procedure:** shuffle, cut the training data into $K$ equal chunks, then $K$ times: hold one
@@ -1961,16 +1986,26 @@ and entirely invisible until launch.
 
 **`TimeSeriesSplit`, the expanding window:**
 
-```
-Random K-Fold (WRONG for temporal)        TimeSeriesSplit (CORRECT)
-──────────────────────────────────        ─────────────────────────
- Fold 1  T V T T V T V T T V T V           Split 1  [TRAIN][VAL]· · · · · · ·
- Fold 2  V T T V T T T V T T V T           Split 2  [TRAIN TRAIN][VAL]· · · ·
- Fold 3  T T V T T V T T V T T V           Split 3  [TRAIN TRAIN TRAIN][VAL]·
-         ↑ validation rows are             Split 4  [TRAIN TRAIN TRAIN TR][VAL]
-           surrounded by training                    →  time  →
-           rows from the future            Every validation fold is strictly
-                                           AFTER every training row it's scored against
+```svg
+<svg viewBox="0 0 640 240" role="img" aria-label="Random K-fold versus TimeSeriesSplit" font-family="system-ui,sans-serif">
+  <style>
+    .tr{fill:#2C2820;stroke:#4C4739}.va{fill:#1E3025;stroke:#4FA073}.no{fill:#16140F;stroke:#37332B}
+    .h{fill:#EDE6D7;font-size:12.5px;font-weight:700}.lab{fill:#B4AA95;font-size:11px}.warn{fill:#E89170;font-size:11px}
+  </style>
+  <text class="h" x="10" y="16">Random K-fold <tspan fill="#E89170">(wrong for time)</tspan></text>
+  <g transform="translate(10,26)">
+    <g><rect class="tr" x="0" y="0" width="26" height="20"/><rect class="va" x="28" y="0" width="26" height="20"/><rect class="tr" x="56" y="0" width="26" height="20"/><rect class="tr" x="84" y="0" width="26" height="20"/><rect class="va" x="112" y="0" width="26" height="20"/><rect class="tr" x="140" y="0" width="26" height="20"/><rect class="va" x="168" y="0" width="26" height="20"/><rect class="tr" x="196" y="0" width="26" height="20"/><rect class="tr" x="224" y="0" width="26" height="20"/><rect class="va" x="252" y="0" width="26" height="20"/></g>
+    <g transform="translate(0,24)"><rect class="va" x="0" y="0" width="26" height="20"/><rect class="tr" x="28" y="0" width="26" height="20"/><rect class="tr" x="56" y="0" width="26" height="20"/><rect class="va" x="84" y="0" width="26" height="20"/><rect class="tr" x="112" y="0" width="26" height="20"/><rect class="tr" x="140" y="0" width="26" height="20"/><rect class="va" x="168" y="0" width="26" height="20"/><rect class="tr" x="196" y="0" width="26" height="20"/><rect class="tr" x="224" y="0" width="26" height="20"/><rect class="va" x="252" y="0" width="26" height="20"/></g>
+    <text class="warn" x="0" y="66">the model trains on rows that come after the ones it is scored on</text>
+  </g>
+  <text class="h" x="10" y="128">TimeSeriesSplit <tspan fill="#8CDCA6">(correct)</tspan></text>
+  <g transform="translate(10,138)">
+    <g><rect class="tr" x="0" y="0" width="80" height="18"/><rect class="va" x="82" y="0" width="40" height="18"/><rect class="no" x="124" y="0" width="156" height="18"/></g>
+    <g transform="translate(0,22)"><rect class="tr" x="0" y="0" width="120" height="18"/><rect class="va" x="122" y="0" width="40" height="18"/><rect class="no" x="164" y="0" width="116" height="18"/></g>
+    <g transform="translate(0,44)"><rect class="tr" x="0" y="0" width="160" height="18"/><rect class="va" x="162" y="0" width="40" height="18"/><rect class="no" x="204" y="0" width="76" height="18"/></g>
+    <text class="lab" x="0" y="82">the train window grows; every val block is strictly after every training row — time runs left to right</text>
+  </g>
+</svg>
 ```
 
 Training always ends before validation begins, and the training window **expands** with each split —
@@ -2071,18 +2106,35 @@ knowing:
 **Hyperparameters have wildly unequal importance** — the slide's own "`learning_rate` > `max_depth` >
 `n_estimators`." Now consider a 9-point grid over two hyperparameters, one important and one not:
 
-```
-     GRID SEARCH (3×3 = 9 trials)          RANDOM SEARCH (9 trials)
-   unimportant →                          unimportant →
-     ●     ●     ●                          ●   ●        ●
-     ●     ●     ●     ↑ important           ●      ●  ●   ↑ important
-     ●     ●     ●                        ●     ●      ● ●
-
-   Only 3 DISTINCT values of the          9 DISTINCT values of the
-   important hyperparameter were          important hyperparameter
-   ever tried. The other 6 trials         were tried. Every trial
-   were duplicates along the axis         explored new ground on the
-   that mattered.                         axis that mattered.
+```svg
+<svg viewBox="0 0 600 250" role="img" aria-label="Grid search versus random search coverage" font-family="system-ui,sans-serif">
+  <style>
+    .ax{stroke:#4C4739;stroke-width:1.4}.d{fill:#8CDCA6}.t{fill:#7C7361;font-size:11px}
+    .ttl{fill:#EDE6D7;font-size:12.5px;font-weight:700}.sub{fill:#B4AA95;font-size:11px}
+  </style>
+  <g transform="translate(20,20)">
+    <text class="ttl" x="120" y="0" text-anchor="middle">Grid search — 3 by 3 = 9 trials</text>
+    <line class="ax" x1="20" y1="160" x2="240" y2="160"/><line class="ax" x1="20" y1="10" x2="20" y2="160"/>
+    <text class="t" x="130" y="182" text-anchor="middle">important parameter</text>
+    <text class="t" x="8" y="90" text-anchor="middle" transform="rotate(-90 8 90)">unimportant parameter</text>
+    <g class="d">
+      <circle cx="70" cy="40" r="5"/><circle cx="130" cy="40" r="5"/><circle cx="190" cy="40" r="5"/>
+      <circle cx="70" cy="90" r="5"/><circle cx="130" cy="90" r="5"/><circle cx="190" cy="90" r="5"/>
+      <circle cx="70" cy="140" r="5"/><circle cx="130" cy="140" r="5"/><circle cx="190" cy="140" r="5"/>
+    </g>
+    <text class="sub" x="120" y="205" text-anchor="middle">only 3 distinct values of the axis that matters</text>
+  </g>
+  <g transform="translate(330,20)">
+    <text class="ttl" x="120" y="0" text-anchor="middle">Random search — 9 trials</text>
+    <line class="ax" x1="20" y1="160" x2="240" y2="160"/><line class="ax" x1="20" y1="10" x2="20" y2="160"/>
+    <text class="t" x="130" y="182" text-anchor="middle">important parameter</text>
+    <text class="t" x="8" y="90" text-anchor="middle" transform="rotate(-90 8 90)">unimportant parameter</text>
+    <g class="d">
+      <circle cx="48" cy="55" r="5"/><circle cx="88" cy="120" r="5"/><circle cx="112" cy="30" r="5"/><circle cx="140" cy="95" r="5"/><circle cx="165" cy="140" r="5"/><circle cx="185" cy="60" r="5"/><circle cx="205" cy="110" r="5"/><circle cx="70" cy="88" r="5"/><circle cx="225" cy="38" r="5"/>
+    </g>
+    <text class="sub" x="120" y="205" text-anchor="middle">9 distinct values — every trial explores new ground</text>
+  </g>
+</svg>
 ```
 
 Grid search **wastes trials on duplicate values of the axis that matters**. With 9 trials on a 3×3
@@ -2169,12 +2221,12 @@ The idea: don't give every candidate a full evaluation. Start all $N$ candidates
 budget (a fraction of the data, or few trees), keep the top $1/\eta$, multiply the survivors'
 budget by $\eta$, repeat.
 
-```
-Round 1:  81 configs ×  100 rows   →  keep top 27
-Round 2:  27 configs ×  300 rows   →  keep top  9
-Round 3:   9 configs ×  900 rows   →  keep top  3
-Round 4:   3 configs × 2700 rows   →  keep top  1
-```
+| Round | configs | rows each | keep |
+|---|---|---|---|
+| 1 | 81 | 100 | top 27 |
+| 2 | 27 | 300 | top 9 |
+| 3 | 9 | 900 | top 3 |
+| 4 | 3 | 2,700 | top 1 |
 
 Total cost ≈ 4 × 8,100 resource-units, versus 81 × 2,700 = 218,700 for evaluating everything fully —
 roughly a **6.7× saving**, and the saving grows with $N$. The assumption is that a config that is
@@ -2193,14 +2245,14 @@ change something, it becomes a validation set — and you no longer have a test 
 
 The correct hierarchy:
 
-```
-   TRAIN  ─────────────►  fit model parameters (weights, splits)
-     │
-     └─ CV folds inside ─►  choose hyperparameters (§12), choose model family (§13)
-                              ▲ you may look at these as often as you like
-
-   TEST   ─────────────►  report ONE number, ONCE, at the very end
-                              ▲ look at this twice and it is no longer a test set
+```mermaid
+flowchart TD
+    TR["<b>TRAIN</b> → fit model parameters (weights, splits)"]
+    CV["<b>CV folds inside TRAIN</b> → choose hyperparameters (§12) &amp; model family (§13)<br/><small>you may look at these as often as you like</small>"]
+    TE["<b>TEST</b> → report ONE number, ONCE, at the very end<br/><small>look at it twice and it is no longer a test set</small>"]
+    TR --> CV -.-> TE
+    classDef test fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    class TE test
 ```
 
 ---
@@ -2384,23 +2436,18 @@ margins outward long after the classification is correct.
 Bin predictions by predicted probability. For each bin, plot mean predicted probability (x) against
 observed positive frequency (y).
 
+```mermaid
+xychart-beta
+    title "Reading a reliability diagram"
+    x-axis "mean predicted probability" 0 --> 1
+    y-axis "observed frequency" 0 --> 1
+    line [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    line [0.02, 0.12, 0.27, 0.44, 0.62, 0.80]
 ```
-   1.0 ┤                                    ╱ ●
-       │  perfect calibration = diagonal  ╱ ●
-   0.8 ┤                                ╱ ●
-       │                              ╱  ●          BELOW the line
- actual│                            ╱ ●             = OVERCONFIDENT
-   0.6 ┤                          ╱●                  (said 0.9, got 0.7)
-frequency                       ╱ ●
-   0.4 ┤                      ╱●
-       │                   ●╱                       ABOVE the line
-   0.2 ┤              ● ●╱                          = UNDERCONFIDENT
-       │        ●  ●╱                                 (said 0.2, got 0.35)
-   0.0 ┤   ● ●╱
-       └┬─────┬─────┬─────┬─────┬
-        0.0  0.2   0.4   0.6   0.8   1.0
-              mean predicted probability
-```
+
+**Green = perfect calibration** (the diagonal). **Orange = this model** — it sits *below*
+the diagonal, so it is **over-confident**: it says 0.8 and is right only 0.62 of the time.
+A curve *above* the diagonal would be under-confident.
 
 A perfectly calibrated model traces the diagonal. **Above** the diagonal = underconfident. **Below** =
 overconfident. The Random-Forest curve on the slide does both — above at the left, below at the right
@@ -2891,51 +2938,29 @@ ready-made revision card:
 
 ### The dependency map
 
-```
-                    ┌───────────────────────────────┐
-                    │  §1–2  DECISION TREE          │
-                    │  recursive partitioning +     │
-                    │  Gini / entropy / info gain   │
-                    └───────────────┬───────────────┘
-                                    │
-                    ┌───────────────▼───────────────┐
-                    │  §3  THE DEFECT               │
-                    │  greedy (NP-completeness) +   │
-                    │  argmax variance × recursion  │
-                    └───────────────┬───────────────┘
-                                    │
-           ┌────────────────────────┼────────────────────────┐
-           ▼                        ▼                        ▼
-  ┌─────────────────┐   ┌────────────────────┐   ┌────────────────────┐
-  │ §4 PRUNE        │   │ §6 BAG             │   │ §7 BOOST           │
-  │ pre / post      │   │ deep trees +       │   │ shallow trees +    │
-  │ ↓variance       │   │ bootstrap + vote   │   │ sequential residual│
-  │ ↑bias           │   │ ↓↓variance         │   │ ↓↓bias             │
-  │ 0.697→0.757     │   │ →0.753             │   │ →0.763             │
-  └─────────────────┘   └─────────┬──────────┘   └─────────┬──────────┘
-                                  │ decorrelate            │
-                        ┌─────────▼──────────┐             │
-                        │ RANDOM FOREST      │             │
-                        │ + max_features     │             │
-                        │ attacks ρσ² floor  │             │
-                        │ →0.769, OOB 0.774  │             │
-                        └─────────┬──────────┘             │
-                                  └──────────┬─────────────┘
-                                             │  §8 CHOOSE: how clean are the labels?
-                                             ▼
-        ══════════════════════ THE MACHINERY AROUND THE MODEL ══════════════════════
-                                             │
-     ┌──────────┬──────────┬─────────────────┼──────────┬───────────┬─────────────┐
-     ▼          ▼          ▼                 ▼          ▼           ▼             ▼
-  §9 multi-  §10 im-   §11 CROSS-       §12 hyper-  §13 model  §14 cali-    §15 PIPELINE
-  class      balance   VALIDATION       parameter   selection  bration      the wrapper that
-  OvR/OvO/   weights/  ┌──────────────┐ search      NFL +      Platt/       makes all of the
-  softmax    SMOTE     │ every box    │ grid/random Occam      isotonic     above leak-proof
-                       │ ABOVE and    │                                     ↓
-                       │ BELOW needs  │                                     joblib.dump
-                       │ this to be   │                              ONE DEPLOYABLE ARTIFACT
-                       │ measured     │                                 CV 0.707 / test 0.679
-                       └──────────────┘
+```mermaid
+flowchart TD
+    A["<b>§1–2 · Decision tree</b><br/><small>recursive partitioning + Gini / entropy / info gain</small>"]
+    A --> B["<b>§3 · The defect</b><br/><small>greedy (NP-complete) + argmax-variance × recursion</small>"]
+    B --> P["<b>§4 Prune</b><br/><small>pre / post · ↓variance ↑bias · 0.697 → 0.757</small>"]
+    B --> BG["<b>§6 Bag</b><br/><small>deep trees + bootstrap + vote · ↓↓variance · → 0.753</small>"]
+    B --> BO["<b>§7 Boost</b><br/><small>shallow trees + sequential residuals · ↓↓bias · → 0.763</small>"]
+    BG -->|decorrelate| RF["<b>Random Forest</b> + max_features<br/><small>attacks the ρσ² floor · → 0.769, OOB 0.774</small>"]
+    P --> CH["<b>§8 · Choose:</b> how clean<br/>are the labels?"]
+    RF --> CH
+    BO --> CH
+    CH --> M["<b>The machinery around the model</b>"]
+    M --> M9["<b>§9</b> multi-class · OvR / OvO / softmax"]
+    M --> M10["<b>§10</b> imbalance · weights / SMOTE"]
+    M --> M11["<b>§11</b> cross-validation<br/><small>every result above &amp; below needs this to be measured</small>"]
+    M --> M12["<b>§12</b> hyperparameter search · grid / random"]
+    M --> M13["<b>§13</b> model selection · NFL + Occam"]
+    M --> M14["<b>§14</b> calibration · Platt / isotonic"]
+    M --> M15["<b>§15 · Pipeline</b> — the leak-proof wrapper<br/><small>joblib.dump → one deployable artifact · CV 0.707 / test 0.679</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class RF,M,M15 k
+    class CH ask
 ```
 
 **Read the diagram's spine.** §11 is drawn in the middle because it is not one topic among many —
