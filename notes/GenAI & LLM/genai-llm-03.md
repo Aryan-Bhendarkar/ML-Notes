@@ -1173,16 +1173,25 @@ $$W' = W_0 + \frac{\alpha}{r} BA, \qquad B \in \mathbb{R}^{d \times r},\ A \in \
 
 The slide's diagram, which is worth internalising:
 
-```
-   W₀ (d × k)          B          A (r × k)         BA = ΔW
-  ┌───────────┐      ┌───┐    ┌───────────┐      ┌───────────┐
-  │███████████│      │▓▓▓│    │▓▓▓▓▓▓▓▓▓▓▓│      │███████████│
-  │███████████│  +   │▓▓▓│  × └───────────┘  =   │███████████│
-  │███████████│      │▓▓▓│                       │███████████│
-  │███████████│      │▓▓▓│                       │███████████│
-  └───────────┘      └───┘                       └───────────┘
-     frozen          d × r                         d × k
-                the thin waist r is the whole story
+```svg
+<svg viewBox="0 0 560 180" role="img" aria-label="LoRA: a frozen weight plus a low-rank update" font-family="system-ui,sans-serif">
+  <style>.frz{fill:#2C2820;stroke:#4C4739}.upd{fill:#1E3025;stroke:#8CDCA6}.op{fill:#EDE6D7;font-size:20px}
+    .lab{fill:#B4AA95;font-size:11px}.note{fill:#8CDCA6;font-size:11px}</style>
+  <rect class="frz" x="14" y="30" width="90" height="90"/>
+  <text class="op" x="122" y="82">+</text>
+  <rect class="upd" x="146" y="30" width="26" height="90"/>
+  <text class="op" x="184" y="82">×</text>
+  <rect class="upd" x="206" y="66" width="90" height="26"/>
+  <text class="op" x="314" y="82">=</text>
+  <rect class="frz" x="338" y="30" width="90" height="90" stroke="#8CDCA6"/>
+  <g class="lab" text-anchor="middle">
+    <text x="59" y="140">W₀ (d×k) · frozen</text>
+    <text x="159" y="140">B (d×r)</text>
+    <text x="251" y="106">A (r×k)</text>
+    <text x="383" y="140">ΔW = BA (d×k)</text>
+  </g>
+  <text class="note" x="280" y="164" text-anchor="middle">the thin waist r is the whole story — trainable params drop from d·k to r·(d+k)</text>
+</svg>
 ```
 
 The slide's caption: **"BA has $W_0$'s footprint, built from those two slivers."**
@@ -1835,10 +1844,14 @@ smaller embedding model means retraining, re-embedding everything, and worse qua
 
 The slide's visual:
 
-```
-v[0 .. 3071] : important dims on the left
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░
-└──────────── keep 512 ────────┘└──── discarded ────┘
+```svg
+<svg viewBox="0 0 560 90" role="img" aria-label="Matryoshka embedding truncation" font-family="system-ui,sans-serif">
+  <style>.keep{fill:#8CDCA6}.drop{fill:#37332B}.lab{fill:#B4AA95;font-size:11px}</style>
+  <rect class="keep" x="10" y="24" width="300" height="24"/>
+  <rect class="drop" x="310" y="24" width="240" height="24"/>
+  <text class="lab" x="160" y="66" text-anchor="middle">keep the first 512 dims — important information is packed on the left</text>
+  <text class="lab" x="430" y="66" text-anchor="middle">discard the rest</text>
+</svg>
 ```
 
 > **Slice to any size, zero retraining; re-normalise after the cut.**
@@ -1957,31 +1970,13 @@ the failure from the orientation slide.
 
 ### The pipeline
 
-```
-                    ┌──────────────────────────────┐
-  User query   ───► │ 1. EMBED the query           │
-                    └──────────────┬───────────────┘
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │ 2. SEARCH the vector index    │
-                    │    (nearest neighbours)       │
-                    └──────────────┬───────────────┘
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │ 3. Take TOP-K chunks          │
-                    └──────────────┬───────────────┘
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │ 4. BUILD the prompt:          │
-                    │    Context: <chunks>          │
-                    │    Question: <query>          │
-                    │    "Answer using only         │
-                    │     the context."             │
-                    └──────────────┬───────────────┘
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │ 5. GENERATE with citation     │
-                    └──────────────────────────────┘
+```mermaid
+flowchart TD
+    Q["user query"] --> E["<b>1 · Embed</b> the query"]
+    E --> S["<b>2 · Search</b> the vector index<br/><small>nearest neighbours</small>"]
+    S --> K["<b>3 · Take the top-K chunks</b>"]
+    K --> P["<b>4 · Build the prompt</b><br/><small>Context: &lt;chunks&gt; · Question: &lt;query&gt; · 'Answer using only the context.'</small>"]
+    P --> G["<b>5 · Generate</b> with a citation"]
 ```
 
 The slide's constructed prompt:
@@ -2177,29 +2172,13 @@ The slide's fourth toggle is **Rerank**.
 
 ### The full production pipeline
 
-```
-                       Query
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-      ┌───────────────┐    ┌────────────────┐
-      │ DENSE search  │    │  BM25 search   │
-      │ (meaning)     │    │  (exact terms) │
-      │ top 100       │    │  top 100       │
-      └───────┬───────┘    └────────┬───────┘
-              └──────────┬──────────┘
-                         ▼
-              ┌─────────────────────┐
-              │  RRF fusion (k=60)  │  ← rank-based, no score calibration
-              │  → top 50           │
-              └──────────┬──────────┘
-                         ▼
-              ┌─────────────────────┐
-              │  Cross-encoder      │  ← slow but accurate
-              │  rerank → top 5     │
-              └──────────┬──────────┘
-                         ▼
-                  Into the prompt
+```mermaid
+flowchart TD
+    Q["query"] --> D["<b>Dense search</b> (meaning) · top 100"]
+    Q --> B["<b>BM25 search</b> (exact terms) · top 100"]
+    D & B --> R["<b>RRF fusion</b> (k = 60) — rank-based, no score calibration · top 50"]
+    R --> X["<b>Cross-encoder rerank</b> — slow but accurate · top 5"]
+    X --> P["into the prompt"]
 ```
 
 ### 🎯 Interview question
@@ -2819,13 +2798,15 @@ Verify: from 66k to 262k is a **4×** increase in tokens, for **73% → 74.5% = 
 
 **Compare that against the early part of the curve:**
 
+```mermaid
+xychart-beta
+    title "Long-context accuracy — diminishing returns per 4× more tokens"
+    x-axis "context length" [256, 1024, 4096, 16384, 65536, 262144]
+    y-axis "accuracy (%)" 30 --> 80
+    line [40, 55, 64, 70, 73, 74.5]
 ```
-  256 →   1k   (4× tokens):  40% → 55%   =  +15 points
-   1k →   4k   (4× tokens):  55% → 64%   =   +9 points
-   4k →  16k   (4× tokens):  64% → 70%   =   +6 points
-  16k →  66k   (4× tokens):  70% → 73%   =   +3 points
-  66k → 262k   (4× tokens):  73% → 74.5% =   +1.5 points
-```
+
+Each step is 4× the tokens: +15, then +9, +6, +3, +1.5 points. The marginal value of context collapses.
 
 **Every 4× costs the same money and buys roughly half as much as the previous one.** That is what a
 logarithmic curve means in practice.
@@ -3456,17 +3437,14 @@ on 75% of your traffic for no benefit.
 > **Cascading** — route every query to a cheap model first. Assess whether the answer is good enough.
 > Escalate only the ones that aren't.
 
-```
-             ┌──────────────┐
-  query ───► │ cheap model  │ ───► ┌─────────────┐
-             │   1× / call  │      │ good enough?│
-             └──────────────┘      └──┬───────┬──┘
-                                    yes│       │no
-                                       ▼       ▼
-                                    ship   ┌──────────────┐
-                                      ✓    │ strong model │ ──► ship
-                                           │  20× / call  │     (escalated)
-                                           └──────────────┘
+```mermaid
+flowchart LR
+    Q["query"] --> C["<b>cheap model</b><br/><small>1× / call</small>"]
+    C --> J{"good enough?"}
+    J -->|yes| S1["ship ✓"]
+    J -->|no| ST["<b>strong model</b><br/><small>20× / call</small>"] --> S2["ship (escalated)"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class J ask
 ```
 
 The slide's cost anchors: **cheap model 1× per call, strong model 20× per call** (marked
@@ -3531,84 +3509,23 @@ tail. Layer in prompt caching for shared system prompts, and continuous batching
 
 ### The dependency structure
 
-```
-              A PRE-TRAINED, ALIGNED MODEL
-           (fluent, confident, and often WRONG
-            about your private or fresh facts)
-                          │
-         ╔════════════════╪════════════════════╗
-         ║   Q1: MAKE IT DO YOUR TASK          ║  (quality)
-         ╚════════════════╪════════════════════╝
-                          │
-     ┌──────────┬─────────┴────────┬──────────────┐
-     │          │                  │              │
-  DECODE     PROMPT            ADAPT (PEFT)    RETRIEVE (RAG)
-     │          │                  │              │
-  temp/top-p  in-context        why full FT     embeddings
-  top-k       learning          = 18 B/param      │ cosine, not
-     │          │                  │              │ raw dot product
-  beam &      chain-of-         freeze base       │
-  the         thought           → LoRA            ├─ Matryoshka
-  likelihood    │               (r ≪ d,           │  (truncate,
-  trap        self-consistency   0.06%,           │   re-normalise)
-     │        tree-of-thoughts   0 latency)       │
-  constrained   │                  │              ├─ chunking (~384)
-  decoding      │               QLoRA (NF4)       │
-  (mask to      │               780GB → 41GB      ├─ hybrid: dense
-   −∞)          │                  │              │  + BM25, fused
-     │          │               merging (TIES:    │  by RANK (RRF)
-     │          │               elect the sign)   │
-     │          │                  │              ├─ rerank
-     │          │               continual PT      │  (cross-encoder)
-     │          │               + ~5% replay      │
-     │          │               (else catastrophic└─ stack them:
-     │          │                forgetting)         5.7% → 1.9%
-     │          │                  │                        │
-     │          └──────────────────┴────────────────────────┘
-     │                             │
-     │              MATCH THE FIX TO THE GAP
-     │        facts → RAG (0.88) · style → PEFT (0.50)
-     │        prompt → RAG → PEFT → continual
-     │        (the wrong add-on HURTS: FT 87 → +RAG 83)
-     │                             │
-     └─────────────────────────────┤
-                                   │
-         ╔═════════════════════════╪═══════════════════════╗
-         ║   Q2: MAKE IT RUN AFFORDABLY                    ║  (cost, latency)
-         ╚═════════════════════════╪═══════════════════════╝
-                                   │
-        ┌──────────────────┬───────┴─────────┬──────────────┐
-        │                  │                 │              │
-   LONG CONTEXT       REASONING            SERVING          │
-        │                  │                 │              │
-   sliding window     test-time compute   KV cache          │
-   W × L reach          │                 2Ln_kv d_h SBb    │
-   (but 3e-6            best split moves    │               │
-    influence)          with difficulty   GQA: 64→8         │
-        │                  │               = 8× smaller     │
-   LOST IN THE        log returns:          │               │
-   MIDDLE             last 4× = +1.5pts   quantization      │
-   (U-shape;          o3: +11.8pts        cliff at ~4 bits  │
-    buried doc         = 172× cost          │               │
-    < no doc)            │               speculative        │
-        │             sampling regime:    decoding          │
-   LC or RAG?         74.4 / 83.3 / 93.0  (LOSSLESS)        │
-   22× at N=100       — same weights!       │               │
-   → Self-Route          │               continuous batching│
-                         │               + PagedAttention   │
-                         │               8× → 23×           │
-                         │                 │               │
-                         └────────┬────────┴───────────────┘
-                                  │
-                            ROUTING / CASCADE
-                       cheap first (1×), escalate (20×)
-                                  │
-                                  ▼
-                    ╔═══════════════════════════════╗
-                    ║  MEASURE THE GAP, THEN TURN   ║
-                    ║  THE CHEAPEST KNOB THAT       ║
-                    ║  CLOSES IT                    ║
-                    ╚═══════════════════════════════╝
+```mermaid
+flowchart TD
+    M["<b>A pre-trained, aligned model</b><br/><small>fluent, confident, and often wrong about your private or fresh facts</small>"]
+    M --> Q1["<b>Q1 · Make it do your task</b> (quality)"]
+    Q1 --> DEC["<b>Decode</b><br/><small>temp / top-p / top-k · beam & the likelihood trap · constrained decoding (mask to −∞)</small>"]
+    Q1 --> PR["<b>Prompt</b><br/><small>in-context learning · chain-of-thought · self-consistency · tree-of-thoughts</small>"]
+    Q1 --> AD["<b>Adapt (PEFT)</b><br/><small>full FT = 18 B/param → freeze base → LoRA (r ≪ d, 0.06%, 0 latency) → QLoRA NF4 (780GB → 41GB) → merging (TIES) → continual PT + ~5% replay</small>"]
+    Q1 --> RE["<b>Retrieve (RAG)</b><br/><small>embeddings, cosine not raw dot · Matryoshka (truncate + renormalise) · chunking (~384) · hybrid dense + BM25 fused by rank (RRF) · rerank (cross-encoder) · stack them: 5.7% → 1.9%</small>"]
+    DEC & PR & AD & RE --> MATCH["<b>Match the fix to the gap</b><br/><small>facts → RAG (0.88) · style → PEFT (0.50) · prompt → RAG → PEFT → continual · the wrong add-on hurts (FT 87 → +RAG 83)</small>"]
+    MATCH --> Q2["<b>Q2 · Make it run affordably</b> (cost, latency)"]
+    Q2 --> LC["<b>Long context</b><br/><small>sliding window (W×L reach, 3e-6 influence) · lost in the middle (U-shape) · LC or RAG? 22× at N=100 → Self-Route</small>"]
+    Q2 --> RS["<b>Reasoning</b><br/><small>test-time compute · log returns (last 4× = +1.5pts; o3 +11.8pts = 172× cost) · sampling regime 74.4 / 83.3 / 93.0 — same weights</small>"]
+    Q2 --> SV["<b>Serving</b><br/><small>KV cache (2·L·n_kv·d_h·S·B·b) · GQA 64→8 = 8× smaller · quantization cliff at ~4 bits · speculative decoding (lossless) · continuous batching + PagedAttention: 8× → 23×</small>"]
+    LC & RS & SV --> RC["<b>Routing / cascade</b> — cheap first (1×), escalate (20×)"]
+    RC --> END(["Measure the gap, then turn the cheapest knob that closes it"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class Q1,Q2,MATCH,END k
 ```
 
 ### Walking through it

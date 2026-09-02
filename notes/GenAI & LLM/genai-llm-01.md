@@ -510,29 +510,22 @@ that lost.
 The slide's key visual is a set of **nested boxes** — not a Venn diagram of overlapping circles,
 but boxes strictly *inside* each other. Each field sits **inside** the last.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ ARTIFICIAL INTELLIGENCE                                  │
-│ machines doing tasks that seem to need "intelligence"    │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ MACHINE LEARNING                                    │ │
-│  │ learn from data, not hand-coded rules               │ │
-│  │                                                     │ │
-│  │  ┌──────────────────────────────────────────────┐  │ │
-│  │  │ DEEP LEARNING                                 │  │ │
-│  │  │ many-layer neural networks                    │  │ │
-│  │  │                                               │  │ │
-│  │  │  ┌────────────────────────────────────────┐  │  │ │
-│  │  │  │ GENERATIVE AI                           │  │  │ │
-│  │  │  │ creates new content, every medium       │  │  │ │
-│  │  │  │                                         │  │  │ │
-│  │  │  │  [LLMs·text] [Images] [Audio] [Video]  │  │  │ │
-│  │  │  │  [Multimodal]                           │  │  │ │
-│  │  │  └────────────────────────────────────────┘  │  │ │
-│  │  └──────────────────────────────────────────────┘  │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph AI["Artificial Intelligence — machines doing tasks that seem to need intelligence"]
+      subgraph ML["Machine Learning — learn from data, not hand-coded rules"]
+        subgraph DL["Deep Learning — many-layer neural networks"]
+          subgraph GA["Generative AI — creates new content, every medium"]
+            L["LLMs · text"]:::leaf
+            IM["Images"]:::leaf
+            AU["Audio"]:::leaf
+            VI["Video"]:::leaf
+            MM["Multimodal"]:::leaf
+          end
+        end
+      end
+    end
+    classDef leaf fill:#1E3025,stroke:#4FA073,color:#EDE6D7
 ```
 
 Layer by layer:
@@ -1310,8 +1303,9 @@ The 2017 paper's diagram (the tall figure on the slide) has two towers.
 **Encoder (left) — reads.** It takes the full input and builds a rich internal representation of
 it. Every token can see every other token, in both directions. Each encoder layer is:
 
-```
-Self-Attention  →  Add & Norm  →  Feed-Forward Network  →  Add & Norm
+```mermaid
+flowchart LR
+    A["Self-Attention"] --> B["Add & Norm"] --> C["Feed-Forward Network"] --> D["Add & Norm"]
 ```
 
 **Decoder (right) — writes.** It generates output one token at a time. It has the same blocks,
@@ -2956,53 +2950,29 @@ Transformer form to Shazeer et al. 2017 — the same year as the Transformer its
 Everything in this lecture hangs off **one objective** and **one cost problem**. Here is the
 dependency structure:
 
-```
-                    NEXT-TOKEN PREDICTION
-                  P(x_t | x_1 ... x_{t-1})
-                            │
-        ┌───────────────────┴────────────────────┐
-        │                                        │
-   HOW DO WE TRAIN IT?                    WHAT COMPUTES IT?
-        │                                        │
-   ┌────┴─────┐                          ┌───────┴────────┐
-   │          │                          │                │
-TOKENIZER   DATA                    TRANSFORMER      alternatives
-(BPE)    (curate,                        │          (Mamba, RWKV,
-   │      dedup,                         │            Jamba)
-   │      decontam.)                     │                ▲
-   └────┬─────┘                    ┌─────┴─────┐          │
-        │                          │           │          │
-   CROSS-ENTROPY LOSS         ATTENTION       FFN         │
-        │                     softmax(QK'/√d)V  │         │
-        │                          │           │          │
-        ▼                          │      ┌────┴────┐     │
-   SCALING LAWS                    │    dense     MoE     │
-   L(C) ≈ (C_min/C)^α              │  (all params) (router│
-        │                          │              + top-k)│
-        ├──► CHINCHILLA            │                      │
-        │    (20 tok/param)   ┌────┴─────┐                │
-        │                     │          │                │
-        └──► EMERGENCE   NO WORD ORDER  COSTS O(N²) ──────┘
-             (real, or a         │           │        (this arrow is
-              metric artifact?)  │           │         WHY they exist)
-                                 ▼           ▼
-                          POSITIONAL     ┌───┴────────────┐
-                          ENCODING       │                │
-                          (abs, rel,   MEMORY          COMPUTE
-                           RoPE, ALiBi)   │                │
-                                          ▼                ▼
-                                     KV CACHE        FlashAttention
-                                          │           (tiling, exact)
-                                    ┌─────┴─────┐
-                                    │           │
-                                MHA→GQA→MQA    MLA
-                                              (latent
-                                            compression)
-
-   Cutting across everything:  RESIDUALS + PRE-NORM + RMSNorm
-                               (without these, depth doesn't train)
-                               DATA/TENSOR/PIPELINE PARALLELISM
-                               (without these, size doesn't fit)
+```mermaid
+flowchart TD
+    NTP["<b>Next-token prediction</b> · P(xₜ | x₁ … xₜ₋₁)"]
+    NTP --> TRAIN["<b>How do we train it?</b>"]
+    NTP --> COMP["<b>What computes it?</b>"]
+    TRAIN --> TOK["<b>Tokenizer</b> (BPE)"]
+    TRAIN --> DATA["<b>Data</b><br/><small>curate · dedup · decontaminate</small>"]
+    TOK & DATA --> CE["<b>Cross-entropy loss</b>"]
+    CE --> SL["<b>Scaling laws</b> · L(C) ≈ (C_min/C)^α<br/><small>→ Chinchilla (20 tok/param) · → emergence (real, or a metric artifact?)</small>"]
+    COMP --> TF["<b>Transformer</b>"]
+    COMP --> ALT["alternatives<br/><small>Mamba · RWKV · Jamba</small>"]
+    TF --> ATT["<b>Attention</b> · softmax(QKᵀ/√d)V"]
+    TF --> FFN["<b>FFN</b>"]
+    FFN --> DENSE["dense — all params"]
+    FFN --> MOE["MoE — router + top-k"]
+    ATT --> NOORD["no word order → <b>positional encoding</b><br/><small>absolute · relative · RoPE · ALiBi</small>"]
+    ATT --> COST["costs O(N²) — the reason the tricks below exist"]
+    COST --> MEM["<b>Memory</b> → KV cache → MHA → GQA → MQA → MLA (latent compression)"]
+    COST --> CPU["<b>Compute</b> → FlashAttention (tiling, exact)"]
+    MOE -.-> CPU
+    X["<b>Cutting across everything</b><br/><small>residuals + pre-norm + RMSNorm (without these, depth doesn't train) · data / tensor / pipeline parallelism (without these, size doesn't fit)</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class NTP,SL k
 ```
 
 **Walking through it in words.**

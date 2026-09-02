@@ -221,15 +221,9 @@ cheap layer that surfaces it.
 
 The slide's central diagram shows the pipeline, with the data cost of each stage:
 
-```
-┌──────────────────┐    ┌──────────────────┐    ┌────────────────────────┐
-│   Pre-train      │ →  │     + SFT        │ →  │  + Preference opt      │
-│                  │    │                  │    │                        │
-│ learns to        │    │ learns the       │    │ learns WHICH answer    │
-│ CONTINUE text    │    │ FORMAT of helping│    │ is best                │
-│                  │    │                  │    │                        │
-│  ~15T tokens     │    │   ~10k demos     │    │    ~50k compares       │
-└──────────────────┘    └──────────────────┘    └────────────────────────┘
+```mermaid
+flowchart LR
+    A["<b>Pre-train</b><br/><small>learns to continue text · ~15T tokens</small>"] --> B["<b>+ SFT</b><br/><small>learns the format of helping · ~10k demos</small>"] --> C["<b>+ Preference optimisation</b><br/><small>learns which answer is best · ~50k comparisons</small>"]
 ```
 
 **Stare at those three numbers.** 15,000,000,000,000 tokens. Then 10,000 demonstrations. Then
@@ -788,14 +782,10 @@ scores them, and the model's parameters are nudged to make high-scoring answers 
 
 The slide's diagram:
 
-```
-   ┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-   │ 1 Preferences │  →   │ 2 Reward model│  →   │ 3 PPO update  │
-   │ human picks   │      │ scores any    │      │ policy chases │
-   │    A > B      │      │    answer     │      │    reward     │
-   └───────────────┘      └───────────────┘      └───────────────┘
-           ▲                                              │
-           └──────── better answers → collect new preferences ─────┘
+```mermaid
+flowchart LR
+    P["<b>1 · Preferences</b><br/><small>a human picks A &gt; B</small>"] --> R["<b>2 · Reward model</b><br/><small>scores any answer</small>"] --> U["<b>3 · PPO update</b><br/><small>the policy chases the reward</small>"]
+    U -->|"better answers → collect new preferences"| P
 ```
 
 The slide's label on the middle box: **"Reward is a learned proxy for what humans prefer."**
@@ -1596,18 +1586,11 @@ The slide's per-row commentary:
 
 Trace the progression — it's the cleanest summary of this half of the lecture:
 
-```
-PPO   →  policy + reference + reward model + critic     (4 networks)
-             │
-             │  DPO: solve the RL analytically
-             │       → reward model folded into the policy, critic unnecessary
-             ▼
-DPO   →  policy + reference                             (2 networks, offline)
-             │
-             │  GRPO: keep online learning, but get the baseline from the group
-             │        and the reward from a verifier
-             ▼
-GRPO  →  policy + reference                             (2 networks, online)
+```mermaid
+flowchart TD
+    PPO["<b>PPO</b> · policy + reference + reward model + critic<br/><small>4 networks</small>"]
+    PPO -->|"DPO: solve the RL analytically → reward model folded into the policy, critic unnecessary"| DPO["<b>DPO</b> · policy + reference<br/><small>2 networks, offline</small>"]
+    DPO -->|"GRPO: keep online learning, but take the baseline from the group and the reward from a verifier"| GRPO["<b>GRPO</b> · policy + reference<br/><small>2 networks, online</small>"]
 ```
 
 DPO and GRPO both reach two networks by **different routes**, and they land in different places:
@@ -1721,24 +1704,10 @@ from a person.
 
 The slide's 4-step cycle:
 
-```
-        ┌────────────────────────────────────┐
-        │                                    │
-        ▼                                    │
-   1. Model answers                          │
-      (possibly harmful)                     │
-        │                                    │
-        ▼                                    │
-   2. Critique                               │
-      vs constitution                        │
-        │                          4. Train on revisions
-        ▼                             (RLAIF: AI labels)
-   3. Revise                                 ▲
-      rewrite to comply                      │
-        │                                    │
-        └────────────────────────────────────┘
-
-                  no human labels
+```mermaid
+flowchart TD
+    M["<b>1 · Model answers</b><br/><small>possibly harmful</small>"] --> C["<b>2 · Critique</b> vs the constitution"] --> R["<b>3 · Revise</b> — rewrite to comply"] --> T["<b>4 · Train on the revisions</b><br/><small>RLAIF: the AI does the labelling</small>"]
+    T -->|"no human labels"| M
 ```
 
 > **Iterative self-improvement:** revisions become new training data; the model gets more harmless
@@ -1846,22 +1815,10 @@ approachable with modest compute and open-weight models, and the field genuinely
 
 The slide's cycle:
 
-```
-              ┌─────────────────────────────────┐
-              │                                 │
-              ▼                                 │
-        1. Generate                             │
-           model writes data                    │
-              │                                 │
-              ▼                          4. Better model
-        2. Filter                           feeds next loop
-           dedup + valid                        ▲
-              │                                 │
-              ▼                                 │
-        3. Train                                │
-           fine-tune on kept ───────────────────┘
-
-     each loop:  dataset size ↑   AND   data quality ↑
+```mermaid
+flowchart TD
+    G["<b>1 · Generate</b> — the model writes data"] --> F["<b>2 · Filter</b> — dedup + validate"] --> T["<b>3 · Train</b> — fine-tune on what's kept"] --> B["<b>4 · A better model</b> feeds the next loop"]
+    B -->|"each loop: dataset size ↑ AND data quality ↑"| G
 ```
 
 > **Each better model produces better data, which trains a better model. The filter is what keeps
@@ -2019,68 +1976,24 @@ they're free, automatic, and not themselves a model that can be fooled.
 
 ### The dependency structure
 
-```
-                    PRE-TRAINED MODEL
-              (predicts next token, ~15T tokens)
-                          │
-                 can talk, cannot help
-                          │
-        ╔═════════════════▼══════════════════╗
-        ║  MOVE 1 · INSTRUCTION TUNING (SFT) ║   ~10k demos
-        ║  teaches the FORMAT                ║
-        ╚═════════════════╤══════════════════╝
-                          │
-              chat template + LOSS MASK
-              (loss only on assistant tokens)
-                          │
-                    SFT CHAT MODEL ─────────────────┐
-                          │                          │ becomes π_ref
-        ╔═════════════════▼══════════════════╗       │ for everything below
-        ║  MOVE 2 · PREFERENCE OPTIMISATION  ║  ~50k compares
-        ║  teaches the JUDGEMENT             ║       │
-        ╚═════════════════╤══════════════════╝       │
-                          │                          │
-         ┌────────────────┼────────────────┐         │
-         │                │                │         │
-       RLHF              DPO             GRPO        │
-         │                │                │         │
-    reward model     no reward model   no reward     │
-    + critic (PPO)   no critic         no critic     │
-         │           (closed form)     (group mean)  │
-         │                │                │         │
-         └────────┬───────┴────────┬───────┘         │
-                  │                │                 │
-            KL LEASH to π_ref ◄────┴─────────────────┘
-            guards against ↓
-       REWARD HACKING (Goodhart's law)
-       proxy reward ↑ while true quality ↓
-                  │
-                  ▼
-            ALIGNED MODEL
-         helpful · harmless · honest
-         (mind the ALIGNMENT TAX)
-                  │
-        ╔═════════▼══════════════════════════╗
-        ║  MOVE 3 · SYNTHETIC DATA           ║
-        ║  cuts the HUMAN cost               ║
-        ╚═════════╤══════════════════════════╝
-                  │
-     ┌────────────┼────────────┬──────────────┐
-     │            │            │              │
- Constitutional  Self-      Evol-        Distillation
-   AI / RLAIF   Instruct   Instruct           │
-     │            │            │              │
-     └────────────┴─────┬──────┴──────────────┘
-                        │
-                  THE FILTER
-        (what stops the loop amplifying errors)
-                        │
-                        ▼
-              STaR: filter = VERIFIER
-         (answer key grades the reasoning)
-                        │
-                        └──────► feeds back into GRPO
-                                 → reasoning models (Block 4)
+```mermaid
+flowchart TD
+    PT["<b>Pre-trained model</b><br/><small>predicts the next token · ~15T tokens · can talk, cannot help</small>"]
+    PT --> M1["<b>Move 1 · Instruction tuning (SFT)</b> — teaches the format<br/><small>~10k demos · chat template + loss mask (loss only on assistant tokens)</small>"]
+    M1 --> SFT["<b>SFT chat model</b><br/><small>becomes π_ref for everything below</small>"]
+    SFT --> M2["<b>Move 2 · Preference optimisation</b> — teaches the judgement<br/><small>~50k comparisons</small>"]
+    M2 --> RLHF["<b>RLHF</b> · reward model + critic (PPO)"]
+    M2 --> DPO["<b>DPO</b> · no reward model, no critic (closed form)"]
+    M2 --> GRPO["<b>GRPO</b> · no reward model, no critic (group mean)"]
+    RLHF & DPO & GRPO --> KL["<b>KL leash to π_ref</b><br/><small>guards against reward hacking (Goodhart): proxy reward ↑ while true quality ↓</small>"]
+    SFT -.->|"π_ref"| KL
+    KL --> AL["<b>Aligned model</b> — helpful · harmless · honest<br/><small>mind the alignment tax</small>"]
+    AL --> M3["<b>Move 3 · Synthetic data</b> — cuts the human cost"]
+    M3 --> SYN["Constitutional AI / RLAIF · Self-Instruct · Evol-Instruct · Distillation"]
+    SYN --> FILT["<b>The filter</b> — what stops the loop amplifying errors<br/><small>STaR: filter = verifier (an answer key grades the reasoning)</small>"]
+    FILT -->|"feeds back into GRPO"| RM(["→ reasoning models (Block 4)"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SFT,KL,AL k
 ```
 
 ### Walking through it

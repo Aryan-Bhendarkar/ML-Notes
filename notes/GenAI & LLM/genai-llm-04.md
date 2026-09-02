@@ -257,12 +257,14 @@ So the only question is: **can you turn your data into a sequence of vectors?**
 
 The slide's diagram:
 
-```
-   text   ── sub-word tokens ───►  [The] [cat] [sat] ──┐
-                                                       │
-   image  ── patch embeddings ──►  [▪] [▪] [▪] [▪] ────┼──►  ONE TRANSFORMER
-                                                       │      attention over
-   audio  ── spectrogram frames ►  [♪] [♪] [♪] ────────┘      ALL tokens
+```mermaid
+flowchart LR
+    T["text"] -->|sub-word tokens| TT["[The] [cat] [sat]"]
+    I["image"] -->|patch embeddings| IT["[▪] [▪] [▪] [▪]"]
+    A["audio"] -->|spectrogram frames| AT["[♪] [♪] [♪]"]
+    TT & IT & AT --> TR(["<b>one transformer</b><br/><small>attention over all tokens</small>"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TR k
 ```
 
 > 💡 **The word "ground" in that bullet is doing a lot of work, so unpack it.** Because
@@ -520,15 +522,11 @@ CLIP deep-dive, not this section)*
 > **Keep a strong text LLM frozen. Add a vision encoder and a small projection that maps image
 > features into the LLM's token space. Train only the bridge.**
 
-```
-Modular: a vision encoder bolted onto a frozen LLM
-
-   🖼️  ──►  ┌──────────────┐   ┌──────────────┐   ┌────────────────┐
-            │   vision     │──►│  projection  │──►│  frozen LLM    │
-            │ encoder(CLIP)│   │  → LLM tokens│   │ text + image   │
-            └──────────────┘   └──────────────┘   │     tokens     │
-                                      ▲            └────────────────┘
-                              the ONLY trained part
+```mermaid
+flowchart LR
+    IM["🖼️ image"] --> VE["<b>vision encoder</b> (CLIP)<br/><small>the only trained part</small>"] --> PR["projection → LLM tokens"] --> LLM["<b>frozen LLM</b><br/><small>text + image tokens</small>"]
+    classDef t fill:#1E3025,stroke:#8CDCA6,color:#EDE6D7
+    class VE,PR t
 ```
 
 *In everyday words:* hiring a translator rather than teaching your existing employee a new language.
@@ -569,15 +567,13 @@ LLaVA was trained for a few hundred GPU-hours — but there's a ceiling.
 > **Tokenise every modality and train one model on all of them jointly. Any-to-any, deeper
 > grounding.**
 
-```
-Unified: every modality is just tokens into one model
-
-   text  → tokens  ──┐
-                     │
-   image → patches ──┼──►  ┌──────────────────┐
-                     │     │  one transformer │
-   audio → frames  ──┘     │  all tokens mixed│
-                           └──────────────────┘
+```mermaid
+flowchart LR
+    T["text → tokens"] --> ONE
+    I["image → patches"] --> ONE
+    A["audio → frames"] --> ONE(["<b>one transformer</b><br/><small>all tokens mixed</small>"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class ONE k
 ```
 
 *In everyday words:* raising someone bilingual from birth rather than teaching them a second
@@ -645,17 +641,12 @@ them.
 
 > **Whisper transcribes speech, an LLM answers, a TTS model speaks. Three models in series.**
 
+```mermaid
+flowchart LR
+    U["👤"] --> W["Whisper<br/><small>speech → text</small>"] --> L["LLM<br/><small>text → text</small>"] --> TTS["TTS<br/><small>text → speech</small>"] --> S["🔊"]
 ```
-Cascaded: speech → text → LLM → text → speech
 
-  👤 ──► ┌─────────┐ ──► ┌─────┐ ──► ┌─────┐ ──► 🔊
-         │ Whisper │     │ LLM │     │ TTS │
-         └─────────┘     └─────┘     └─────┘
-
-  three models in series: errors and delay stack up
-
-  latency ████████████████████████████████  ~2.2 s
-```
+Three models in series — errors and delay stack up: Whisper ~0.5 s + LLM ~1.2 s + TTS ~0.5 s ≈ **2.2 s**, and prosody is lost at the text bottleneck.
 
 > 📚 **Background — Whisper and TTS.**
 > **Whisper** is OpenAI's speech-recognition model (an encoder–decoder transformer, from lecture 1's
@@ -706,15 +697,14 @@ question with complete confidence.
 > **One model hears audio and emits audio directly: GPT-4o voice, Gemini Live. Sub-second,
 > interruptible, keeps prosody.**
 
+```mermaid
+flowchart LR
+    M["🎤"] --> N(["<b>single speech-to-speech model</b><br/><small>hears and speaks directly</small>"]) --> S["🔊"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class N k
 ```
-Native: one model hears and speaks directly
 
-  🎤 ──► ┌───────────────────────────────┐ ──► 🔊
-         │  single speech-to-speech model│
-         └───────────────────────────────┘
-
-  latency ████  ~0.3 s
-```
+One model, ~**0.3 s** — and tone, emotion and interruption survive.
 
 **~2.2 s → ~0.3 s.** A **7.3×** reduction, and — crucially — it crosses the threshold from
 "noticeably laggy" to "conversational".
@@ -829,14 +819,22 @@ fallback: The slide's static six-panel strip (x_0 through x_t, forward arrow lab
 > **Start from a real image and add a little Gaussian noise at each of $T$ steps, until it is pure
 > static. No learning here: it is just a fixed recipe.**
 
-```
-forward q(x_t | x_{t-1}) : + noise   ────────────────────────────►
-
-  ▉▉▉▉      ▉▉░▉       ▉░░▉        ░▉░░       ░░░░       ░░░░
-   x_0       x_1        x_2         x_3        x_4        x_T
- clean                                                pure noise
-
-◄────────────────────  reverse p_θ(x_{t-1} | x_t) : predict & subtract noise ε
+```svg
+<svg viewBox="0 0 560 130" role="img" aria-label="The forward noising process" font-family="system-ui,sans-serif">
+  <style>.lab{fill:#B4AA95;font-size:11px}.fwd{fill:#8CDCA6;font-size:11px}.rev{fill:#93B0D6;font-size:11px}</style>
+  <defs>
+    <pattern id="p0" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#EDE6D7"/></pattern>
+    <pattern id="p2" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#9a927f"/><circle cx="2" cy="2" r="1.4" fill="#37332B"/><circle cx="6" cy="6" r="1.4" fill="#37332B"/></pattern>
+    <pattern id="p4" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#5b5648"/><circle cx="4" cy="4" r="2" fill="#2C2820"/></pattern>
+    <pattern id="p6" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#37332B"/></pattern>
+  </defs>
+  <text class="fwd" x="14" y="16">forward q(x_t | x_{t−1}) : add noise  →</text>
+  <g>
+    <rect x="14" y="26" width="60" height="44" fill="url(#p0)"/><rect x="110" y="26" width="60" height="44" fill="url(#p2)"/><rect x="206" y="26" width="60" height="44" fill="url(#p2)"/><rect x="302" y="26" width="60" height="44" fill="url(#p4)"/><rect x="398" y="26" width="60" height="44" fill="url(#p6)"/><rect x="486" y="26" width="60" height="44" fill="url(#p6)"/>
+  </g>
+  <g class="lab" text-anchor="middle"><text x="44" y="84">x₀ (clean)</text><text x="140" y="84">x₁</text><text x="236" y="84">x₂</text><text x="332" y="84">x₃</text><text x="428" y="84">x₄</text><text x="516" y="84">x_T (noise)</text></g>
+  <text class="rev" x="546" y="112" text-anchor="end">←  reverse p_θ(x_{t−1} | x_t) : predict &amp; subtract the noise ε</text>
+</svg>
 ```
 
 ### The reverse process, and the loss
@@ -933,15 +931,10 @@ iterative process is what resolves that average into one specific image.
 > **Forward ($q$): A *fixed* schedule adds a little Gaussian noise at each step $t$. After $T$ steps
 > the image is indistinguishable from static. **No parameters, nothing to learn.**
 
-```
-The diffusion process: a fixed forward chain, a learned reverse
-
-  ┌────┐   ┌────┐   ┌────┐   ┌────┐        ┌────┐
-  │ x₀ │ → │ x₁ │ → │ x₂ │ → │ x₃ │ ⋯⋯⋯ → │ x_T│
-  └────┘   └────┘   └────┘   └────┘        └────┘
-   clean                                  pure noise
-    ◄────────────────────────────────────────────
-     reverse p_θ(x_{t-1}|x_t) — a network predicts & subtracts the noise (learned)
+```mermaid
+flowchart LR
+    X0["x₀<br/><small>clean</small>"] --> X1["x₁"] --> X2["x₂"] --> X3["x₃"] --> XT["x_T<br/><small>pure noise</small>"]
+    XT -.->|"reverse p_θ(x_{t−1}|x_t) — a network predicts &amp; subtracts the noise (learned)"| X0
 ```
 
 ### The shortcut — the fact that makes training affordable
@@ -1569,14 +1562,10 @@ So to go lower, you must **retrain**. Three approaches.
 > Each round doubles the step size: $N \to N/2 \to \ldots$. v-prediction is what keeps the target
 > well-scaled as the steps grow huge.**
 
-```
-Round 0:  teacher = 1024 steps
-Round 1:  student learns to do in 512 what teacher does in 1024
-Round 2:  that student becomes the teacher; next student does 256
-Round 3:  → 128
-...
-Round 8:  → 4 steps
-```
+- **Round 0:** the teacher takes 1024 steps.
+- **Round 1:** the student learns to do in 512 steps what the teacher does in 1024.
+- **Round 2:** that student becomes the teacher; the next student does 256.
+- **Round 3 → 8:** 128 → 64 → 32 → 16 → 8 → **4 steps**.
 
 *In everyday words:* teaching someone to take two stairs at a time, then four, then a whole flight.
 
@@ -1670,19 +1659,19 @@ The slide's closing box states the trade-off honestly:
 
 ### The full progression
 
-```
-DDPM (2020)                      ~1000 steps    — the original
-   ↓  reformulate as deterministic ODE
-DDIM (2020)                        ~50 steps    — free, no retraining
-   ↓  higher-order ODE solvers
-DPM++ (2022)                       ~20 steps    — free, no retraining
-   ↓  ═══ retraining required from here ═══
-Progressive distillation            ~4 steps    — second training stage
-Consistency models / LCM           2-4 steps    — different training target
-Adversarial distillation (ADD)      1-4 steps   — + GAN discriminator
+| Method | Steps | Cost |
+|---|---|---|
+| **DDPM** (2020) | ~1000 | the original |
+| ↓ reformulate as a deterministic ODE | | |
+| **DDIM** (2020) | ~50 | free, no retraining |
+| ↓ higher-order ODE solvers | | |
+| **DPM++** (2022) | ~20 | free, no retraining |
+| ↓ *retraining required from here* | | |
+| **Progressive distillation** | ~4 | a second training stage |
+| **Consistency models / LCM** | 2–4 | a different training target |
+| **Adversarial distillation (ADD)** | 1–4 | + a GAN discriminator |
 
-                     ~1000 → 1.   A 1000× reduction.
-```
+~1000 → 1: a **1000× reduction**.
 
 ### 🎯 Interview question
 
@@ -1736,12 +1725,14 @@ And at 1024×1024, it quadruples to 3.1 million.
 > **The latent keeps the **semantics** and throws away pixel-level redundancy, so the denoiser works
 > in a space **~48× smaller**.**
 
+```mermaid
+flowchart LR
+    I["image<br/><small>512² × 3</small>"] --> E["VAE encoder"] --> D["<b>diffusion in the latent</b><br/><small>64² × 4 · all 50 steps here</small>"] --> DEC["VAE decoder"] --> O["image out"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class D k
 ```
-Pixel space:   512 × 512 × 3 = 786,432 dims
-Latent space:   64 ×  64 × 4 =  16,384 dims
 
-Ratio: 786,432 / 16,384 = 48×                  ✓ matches the slide
-```
+Pixels: 786,432 dims. Latent: 16,384 dims — **~48× smaller**, so the expensive iterative part runs on a fraction of the data.
 
 > 💡 **Note where the 4 comes from.** The spatial dimensions shrink 8× each way ($512/64 = 8$), which
 > alone would be 64×. But the channel count goes *up*, from 3 (RGB) to 4 — the latent needs a bit
@@ -1801,43 +1792,22 @@ predictable pixels — not semantics.
 
 Now that latents (section 12) and guidance (section 9) are defined, here is the complete system.
 
+```mermaid
+flowchart TD
+    P["<b>prompt</b> — 'a red fox in snow'"] --> TE["<b>Text encoder</b> · CLIP / T5 · <b>frozen</b><br/><small>turns words into vectors</small>"]
+    TE -->|text embeddings, via cross-attention| LOOP
+    subgraph LOOP["Latent space · 64 × 64 × 4"]
+      direction LR
+      N["noise z_T ~ N(0, I)"] --> DN["<b>Denoiser</b> · U-Net / DiT<br/><small>predicts ε</small>"] --> C["clean z₀"]
+      C -.->|"repeat T steps (20–50)"| DN
+    end
+    LOOP --> VD["<b>VAE decoder</b> · <b>frozen</b>"]
+    VD --> IMG["generated image · 512 × 512 × 3"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DN k
 ```
-   "a red fox in snow"
-        (prompt)
-           │
-           ▼
-  ┌──────────────────┐
-  │  Text encoder    │   CLIP / T5.  FROZEN.
-  │  CLIP / T5       │   Turns words into vectors.
-  └────────┬─────────┘
-           │ text embeddings
-           │                    ┌── cross-attention ──┐
-           │                    │                     │
-           ▼                    ▼                     │
-  ╔════════════════════════════════════════════════╗  │
-  ║  LATENT SPACE · 64 × 64 × 4                    ║  │
-  ║                                                ║  │
-  ║   ┌────────┐    ┌─────────────┐   ┌────────┐  ║  │
-  ║   │ noise  │───►│  Denoiser   │──►│ clean  │  ║  │
-  ║   │ z_T ~  │    │ U-Net / DiT │   │  z_0   │  ║  │
-  ║   │ N(0,I) │    │ predicts ε  │   └────┬───┘  ║  │
-  ║   └────────┘    └──────┬──────┘        │      ║  │
-  ║                        │               │      ║  │
-  ║                        └───────────────┘      ║  │
-  ║                     repeat T steps (= 20–50)  ║  │
-  ╚════════════════════════════╤═══════════════════╝  │
-                               │                      │
-                               ▼                      │
-                      ┌────────────────┐              │
-                      │  VAE decoder   │  FROZEN.     │
-                      │       ↑        │              │
-                      └────────┬───────┘              │
-                               ▼                      │
-                    generated image · 512 × 512 × 3   │
-                                                      │
-   Training learns ONLY the denoiser; ────────────────┘
-   the text encoder and VAE are pretrained and frozen.
-```
+
+Training learns **only the denoiser**; the text encoder and the VAE are pretrained and frozen.
 
 ### The three components
 
@@ -1900,25 +1870,28 @@ for denoising.
 
 ### The shape
 
-```
-input                                                            output
-image ──┐                                                    ┌── predicted
-tile    │  64   64                              64   64   2  │    noise
-        ▼  ██   ██ ──────────── skip ──────────► ██   ██   █ ▲
-           │                                          ▲
-           ▼ max pool 2×2                             │ up-conv 2×2
-          128  128 ─────────── skip ──────────► 128  128
-           │                                          ▲
-           ▼                                          │
-          256  256 ─────────── skip ──────────► 256  256
-           │                                          ▲
-           ▼                                          │
-          512  512 ─────────── skip ──────────► 512  512
-           │                                          ▲
-           ▼                                          │
-              1024   1024        (bottleneck)
-       contracting path            expanding path
-       (encoder, ↓ size ↑ channels)   (decoder, ↑ size)
+```svg
+<svg viewBox="0 0 600 250" role="img" aria-label="U-Net contracting and expanding paths with skip connections" font-family="system-ui,sans-serif">
+  <style>.b{fill:#2C2820;stroke:#8CDCA6;stroke-width:1.3}.skip{stroke:#E6BA55;stroke-width:1.3;stroke-dasharray:4 3}
+    .e{stroke:#7C7361;stroke-width:1.3}.lab{fill:#B4AA95;font-size:11px}.t{fill:#7C7361;font-size:10.5px}</style>
+  <defs><marker id="a" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0L6,3L0,6z" fill="#7C7361"/></marker></defs>
+  <!-- contracting (left), expanding (right) -->
+  <g class="b">
+    <rect x="30" y="20" width="90" height="24"/><rect x="45" y="70" width="75" height="24"/><rect x="60" y="120" width="60" height="24"/><rect x="75" y="170" width="45" height="24"/>
+    <rect x="240" y="210" width="120" height="24"/>
+    <rect x="480" y="170" width="45" height="24"/><rect x="480" y="120" width="60" height="24"/><rect x="480" y="70" width="75" height="24"/><rect x="480" y="20" width="90" height="24"/>
+  </g>
+  <g class="e" marker-end="url(#a)">
+    <line x1="75" y1="44" x2="82" y2="70"/><line x1="82" y1="94" x2="90" y2="120"/><line x1="90" y1="144" x2="97" y2="170"/><line x1="105" y1="194" x2="245" y2="212"/>
+    <line x1="360" y1="212" x2="500" y2="194"/><line x1="502" y1="170" x2="510" y2="144"/><line x1="510" y1="120" x2="518" y2="94"/><line x1="518" y1="70" x2="525" y2="44"/>
+  </g>
+  <g class="skip" marker-end="url(#a)">
+    <line x1="120" y1="32" x2="480" y2="32"/><line x1="120" y1="82" x2="480" y2="82"/><line x1="120" y1="132" x2="480" y2="132"/><line x1="120" y1="182" x2="480" y2="182"/>
+  </g>
+  <g class="lab"><text x="14" y="14">image in</text><text x="586" y="14" text-anchor="end">predicted noise</text></g>
+  <g class="t"><text x="90" y="238" text-anchor="middle">contracting path — ↓ size, ↑ channels</text><text x="510" y="238" text-anchor="middle">expanding path — ↑ size</text>
+    <text x="300" y="206" text-anchor="middle">bottleneck</text><text x="300" y="18" text-anchor="middle" fill="#E6BA55">skip connections carry high-frequency detail across</text></g>
+</svg>
 ```
 
 > **Contracting path (left):** repeated $3\times3$ convs + downsampling. Spatial size halves at each
@@ -1990,25 +1963,17 @@ lets distant regions communicate.
 > **The shift:** **DiT** replaces it with a **transformer over latent patches** — the same
 > architecture as an LLM, just predicting noise.
 
+```mermaid
+xychart-beta
+    title "Quality vs training compute — DiT keeps scaling where U-Net plateaus"
+    x-axis "training compute (relative)" [1, 3, 10, 30, 100]
+    y-axis "quality" 0 --> 100
+    line [30, 52, 66, 74, 78]
+    line [22, 45, 66, 84, 96]
 ```
-backbone                                        quality vs scale
 
-U-Net (conv, hierarchical)                    │              DiT ╱
-   ███                                        │             ╱
-    ███                                       │          ╱
-     █████                                    │       ╱ ─────── U-Net
-    ███                                       │    ╱ ──────
-   ███                                        │ ╱──
-downsample → bottleneck → up                  └─────────────────────
-                                                1×    10×    100×
-DiT (transformer on patches)                     training compute →
-   □□□
-   □□□   ↓ patchify
-   □□□
-   ▭▭▭▭
-   ▭▭▭▭   N identical transformer blocks
-   ▭▭▭▭
-```
+**Green = U-Net** (convolutional, hierarchical: downsample → bottleneck → upsample) — flattens out.
+**Orange = DiT** (a transformer on patches: patchify, then N identical blocks) — scales like an LLM.
 
 ### Why it won
 
@@ -2061,48 +2026,19 @@ fallback: The two backbone diagrams and the single quality-vs-scale chart alread
 
 > **Replace the convolutions with a transformer over latent patches, and inherit LLM scaling.**
 
-```
-Inside the denoiser: the Diffusion Transformer (DiT)
-
-  ┌──────────────┐
-  │ noisy latent │  64 × 64 × 4
-  │   □□□        │
-  │   □□□        │
-  └──────┬───────┘
-         ▼
-  ┌──────────────┐
-  │ patchify+pos │
-  └──────┬───────┘
-         ▼
-     ▭ ▭ ▭ ▭   patch tokens
-         │
-         ▼
-  ╔══════════════════════════════════╗       ┌──────────────┐
-  ║        DiT block × N             ║       │  timestep t  │
-  ║  ┌────────────────────────┐      ║ ◄─────│  + class/    │
-  ║  │ adaLN-Zero (scale,shift)│     ║       │    text c    │
-  ║  └───────────┬────────────┘      ║       └──────────────┘
-  ║              ▼                    ║   adaLN-Zero injects t and c
-  ║  ┌────────────────────────┐      ║   by modulating each block
-  ║  │ Multi-Head Self-Attn   │      ║
-  ║  └───────────┬────────────┘      ║
-  ║              ⊕ ◄── residual      ║
-  ║              ▼                    ║
-  ║  ┌────────────────────────┐      ║
-  ║  │ adaLN-Zero              │      ║
-  ║  └───────────┬────────────┘      ║
-  ║              ▼                    ║
-  ║  ┌────────────────────────┐      ║
-  ║  │ MLP (feed-forward)     │      ║
-  ║  └───────────┬────────────┘      ║
-  ║              ⊕ ◄── residual      ║
-  ╚══════════════╤═══════════════════╝
-                 ▼
-        ┌─────────────────┐
-        │linear+unpatchify│
-        └────────┬────────┘
-                 ▼
-        predicted noise ε (per patch)
+```mermaid
+flowchart TD
+    NL["noisy latent · 64 × 64 × 4"] --> PP["patchify + positional encoding"] --> PT["patch tokens"]
+    PT --> BLK
+    subgraph BLK["DiT block × N"]
+      direction TB
+      A1["adaLN-Zero (scale, shift)"] --> MHSA["Multi-Head Self-Attention"] --> R1(("⊕ residual"))
+      R1 --> A2["adaLN-Zero"] --> MLP["MLP (feed-forward)"] --> R2(("⊕ residual"))
+    end
+    COND["timestep t + class / text c"] -.->|"adaLN-Zero modulates each block"| BLK
+    BLK --> LU["linear + unpatchify"] --> EPS["predicted noise ε (per patch)"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class BLK k
 ```
 
 ### The four steps
@@ -2168,27 +2104,15 @@ bottleneck. **Just N identical blocks, exactly like GPT.** The architecture is *
 
 > **Three signals enter the same denoiser through different doors, and they compose.**
 
-```
-  "a red fox in snow"
-        prompt
-          │
-          ▼
-   ┌──────────────┐                              ┌──────────────┐
-   │ ① Text encoder│                             │ ③ IP-Adapter │
-   │  CLIP / T5    │──── cross-attn ──┐          │ reference img│
-   └──────────────┘                   │          │    → style   │
-                                      ▼          └──────┬───────┘
-   ┌──────────────┐         ╔══════════════════╗        │ decoupled
-   │ ② ControlNet │         ║    Denoiser      ║        │ cross-attn
-   │ pose/depth/  │────────►║  ┌────────────┐  ║◄───────┘
-   │    edges     │         ║  │ self-attn  │  ║
-   │ a trainable  │         ║  ├────────────┤  ║
-   │ copy of the  │         ║  │ cross-attn │  ║
-   │ encoder,     │         ║  ├────────────┤  ║
-   │ added back in│         ║  │ self-attn  │  ║
-   └──────────────┘         ╚═════════╤════════╝
-                                      ▼
-                            conditioned image
+```mermaid
+flowchart LR
+    P["prompt<br/>'a red fox in snow'"] --> TE["① Text encoder · CLIP / T5"]
+    CN["② ControlNet<br/><small>pose / depth / edges · a trainable copy of the encoder, added back in</small>"] --> DEN
+    IP["③ IP-Adapter<br/><small>a reference image → style · decoupled cross-attention</small>"] --> DEN
+    TE -->|cross-attention| DEN["<b>Denoiser</b><br/><small>self-attn ▸ cross-attn ▸ self-attn</small>"]
+    DEN --> OUT["conditioned image"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class DEN k
 ```
 
 **Door 1 — Text → cross-attention.**
@@ -2249,15 +2173,24 @@ description could specify.
 > **Video: Treat a clip as **spacetime patches** (patches across space *and* time) and denoise the
 > whole volume. This is Sora.**
 
-```
-image: 2D patches                video: spacetime patches
-
-  ▭ ▭ ▭ ▭                          ▭▭▭ ╲
-  ▭ ▭ ▭ ▭                          ▭▭▭  ╲   patches across
-  ▭ ▭ ▭ ▭                          ▭▭▭   ╲  space AND time
-  ▭ ▭ ▭ ▭                           ╲▭▭▭  ╲
-                                     ╲▭▭▭
-  patches over (x, y)                patches over (x, y, t)
+```svg
+<svg viewBox="0 0 560 180" role="img" aria-label="2D image patches versus spacetime video patches" font-family="system-ui,sans-serif">
+  <style>.p{fill:#2C2820;stroke:#8CDCA6;stroke-width:1}.p2{fill:#1E3025;stroke:#4FA073;stroke-width:1}.lab{fill:#B4AA95;font-size:11px}.ttl{fill:#EDE6D7;font-size:12px;font-weight:700}</style>
+  <text class="ttl" x="90" y="16" text-anchor="middle">image — 2D patches</text>
+  <g class="p">
+    <rect x="20" y="30" width="26" height="26"/><rect x="48" y="30" width="26" height="26"/><rect x="76" y="30" width="26" height="26"/><rect x="104" y="30" width="26" height="26"/>
+    <rect x="20" y="58" width="26" height="26"/><rect x="48" y="58" width="26" height="26"/><rect x="76" y="58" width="26" height="26"/><rect x="104" y="58" width="26" height="26"/>
+    <rect x="20" y="86" width="26" height="26"/><rect x="48" y="86" width="26" height="26"/><rect x="76" y="86" width="26" height="26"/><rect x="104" y="86" width="26" height="26"/>
+  </g>
+  <text class="lab" x="90" y="132" text-anchor="middle">patches over (x, y)</text>
+  <text class="ttl" x="390" y="16" text-anchor="middle">video — spacetime patches</text>
+  <g class="p2">
+    <rect x="300" y="40" width="24" height="24"/><rect x="326" y="40" width="24" height="24"/><rect x="352" y="40" width="24" height="24"/>
+    <rect x="312" y="58" width="24" height="24" opacity="0.85"/><rect x="338" y="58" width="24" height="24" opacity="0.85"/><rect x="364" y="58" width="24" height="24" opacity="0.85"/>
+    <rect x="324" y="76" width="24" height="24" opacity="0.7"/><rect x="350" y="76" width="24" height="24" opacity="0.7"/><rect x="376" y="76" width="24" height="24" opacity="0.7"/>
+  </g>
+  <text class="lab" x="390" y="132" text-anchor="middle">patches over (x, y, t) — the same model, a 3-D grid</text>
+</svg>
 ```
 
 > 💡 **Notice how little had to change — that's the point.** An image is a 2-D grid of patches. A
@@ -2312,31 +2245,21 @@ network. The base model's behaviour is wrecked before learning begins.
 
 ### The design
 
-```
-   (a) Before                        (b) After
-                                              c  (control map)
-        x                                     │
-        │                          x          ▼
-        ▼                          │   ┌──────────────┐
-  ┌──────────────┐                 │   │ zero convolution│
-  │ neural       │                 │   └──────┬───────┘
-  │ network      │                 │          ▼
-  │ block        │                 ├────────► ⊕
-  └──────┬───────┘                 │          │
-         │                         ▼          ▼
-         ▼                  ┌──────────────┐ ┌──────────────┐
-         y                  │ neural network│ │  trainable   │
-                            │ block (locked)│ │     copy     │
-                            │      🔒       │ └──────┬───────┘
-                            └──────┬───────┘        ▼
-                                   │         ┌──────────────┐
-                                   │         │zero convolution│
-                                   │         └──────┬───────┘
-                                   ▼                │
-                                   ⊕ ◄──────────────┘
-                                   │
-                                   ▼
-                                   y_c
+```mermaid
+flowchart LR
+    subgraph B["(a) before"]
+      direction TB
+      x1["x"] --> nn1["neural network block"] --> y1["y"]
+    end
+    subgraph A["(b) after — ControlNet"]
+      direction TB
+      x2["x"] --> lock["neural network block 🔒 locked"]
+      c["c (control map)"] --> z1["zero convolution"] --> add1(("⊕"))
+      x2 --> copy["trainable copy"] --> z2["zero convolution"] --> add1
+      lock --> add2(("⊕"))
+      add1 --> add2 --> yc["y_c"]
+    end
+    B --> A
 ```
 
 **In words: the frozen block's output is added to the output of a trainable copy, where the copy is
@@ -2583,20 +2506,22 @@ reason decoding is memory-bandwidth-bound — one full pass over the weights per
 
 The slide's comparison:
 
-```
-Same sentence, two ways to generate it
-
-Autoregressive: one token at a time, left → right
- ┌─────┐┌───────┐┌───────┐┌─────┐┌───────┐┌─────┐┌───────┐
- │ The ││ quick ││ brown ││ fox ││ jumps ││ the ││ fence │
- └─────┘└───────┘└───────┘└─────┘└───────┘└─────┘└───────┘
-        step 7 of 7: must wait for the previous token
-
-Diffusion: all masked, unmask in parallel over a few steps
- ┌─────┐┌───────┐┌───────┐┌─────┐┌───────┐┌─────┐┌───────┐
- │ The ││ quick ││ brown ││ fox ││ jumps ││ the ││ fence │
- └─────┘└───────┘└───────┘└─────┘└───────┘└─────┘└───────┘
-        step 3 of 3: many tokens at once
+```svg
+<svg viewBox="0 0 560 200" role="img" aria-label="Autoregressive versus diffusion text generation" font-family="system-ui,sans-serif">
+  <style>.tok{fill:#2C2820;stroke:#4C4739}.done{fill:#1E3025;stroke:#8CDCA6}.lab{fill:#B4AA95;font-size:11px}.ttl{fill:#EDE6D7;font-size:12px;font-weight:700}.w{fill:#EDE6D7;font-size:10px}</style>
+  <text class="ttl" x="14" y="18">Autoregressive — one token at a time, left → right</text>
+  <g>
+    <rect class="done" x="14" y="28" width="64" height="24"/><rect class="done" x="82" y="28" width="64" height="24"/><rect class="done" x="150" y="28" width="64" height="24"/><rect class="done" x="218" y="28" width="64" height="24"/><rect class="done" x="286" y="28" width="64" height="24"/><rect class="done" x="354" y="28" width="64" height="24"/><rect class="tok" x="422" y="28" width="64" height="24"/>
+  </g>
+  <g class="w" text-anchor="middle"><text x="46" y="44">The</text><text x="114" y="44">quick</text><text x="182" y="44">brown</text><text x="250" y="44">fox</text><text x="318" y="44">jumps</text><text x="386" y="44">the</text><text x="454" y="44">fence</text></g>
+  <text class="lab" x="14" y="70">step 7 of 7 — must wait for the previous token</text>
+  <text class="ttl" x="14" y="112">Diffusion — all masked, unmask in parallel over a few steps</text>
+  <g>
+    <rect class="done" x="14" y="122" width="64" height="24"/><rect class="done" x="82" y="122" width="64" height="24"/><rect class="tok" x="150" y="122" width="64" height="24"/><rect class="done" x="218" y="122" width="64" height="24"/><rect class="tok" x="286" y="122" width="64" height="24"/><rect class="done" x="354" y="122" width="64" height="24"/><rect class="tok" x="422" y="122" width="64" height="24"/>
+  </g>
+  <g class="w" text-anchor="middle"><text x="46" y="138">The</text><text x="114" y="138">quick</text><text x="182" y="138">___</text><text x="250" y="138">fox</text><text x="318" y="138">___</text><text x="386" y="138">the</text><text x="454" y="138">___</text></g>
+  <text class="lab" x="14" y="164">step 2 of 3 — many tokens at once</text>
+</svg>
 ```
 
 **7 sequential steps → 3 parallel rounds.** And the gap widens with length: a 500-token output takes
@@ -2853,21 +2778,17 @@ two red cubes and three blue spheres highly. GenEval would not.
 
 The chart shows scores over time, with a human-performance line:
 
+```mermaid
+xychart-beta
+    title "Benchmarks saturate — as soon as one is solved, the field builds a harder one"
+    x-axis "year" [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    y-axis "score (%)" 0 --> 100
+    line [8, 20, 42, 60, 78, 92, 98, 99]
+    line [5, 10, 22, 40, 58, 78, 90, 95]
+    line [3, 5, 8, 15, 30, 52, 70, 84]
 ```
-100% ┤                          ╭──────── GSM8K
-     │                     ╭────┼──────── MMLU     ── human ──
- 80% ┤          ╭──────────╯    │
-     │      ╭───╯                │              ╭──── GPQA
- 60% ┤   ╭──╯                    │          ╭───╯
-     │╭──╯                       │      ╭───╯
- 40% ┤╯                          │  ╭───╯
-     │                           ╭──╯
- 20% ┤                       ╭───╯
-     └──┬────┬────┬────┬────┬────┬────┬───
-       2019 2020 2021 2022 2023 2024 2025 2026
 
-  As soon as a benchmark is solved, the field builds a harder one.
-```
+Green = GSM8K, orange = MMLU, blue = GPQA. Each new benchmark starts near zero and climbs past human level within a few years.
 
 > 💡 **Read the caption as a structural claim, not a complaint.** MMLU and GSM8K both crossed human
 > performance and flattened at the ceiling — once a benchmark saturates it **stops carrying
@@ -2966,112 +2887,30 @@ From lecture 2's RLAIF: a model can evaluate faster and far more cheaply than hu
 
 ### The dependency structure
 
-```
-              ONE IDEA: IF YOU CAN TOKENISE IT,
-              A TRANSFORMER CAN MODEL IT
-     text→sub-words · image→patches · audio→frames
-                          │
-        ╔═════════════════╪═════════════════╗
-        ║  Q1: HOW DO WE FUSE MODALITIES?   ║
-        ╚═════════════════╪═════════════════╝
-                          │
-              ┌───────────┴────────────┐
-              │                        │
-            CLIP                   FUSION PATTERNS
-      contrastive: pull the            │
-      diagonal, push the rest    ┌─────┴──────┐
-      400M pairs, symmetric      │            │
-      InfoNCE                MODULAR      UNIFIED
-              │              (LLaVA)    (GPT-4o,
-      → ZERO-SHOT:           frozen LLM   Gemini)
-        the classifier       + projection  joint
-        head became a        (cheap,       pretraining
-        SENTENCE             capped)       (any-to-any)
-              │                        │
-              │                   AUDIO: cascade (2.2 s,
-              │                   prosody LOST at the text
-              │                   bottleneck) → native
-              │                   speech-to-speech (0.3 s)
-              │                        │
-              └────────┬───────────────┘
-                       │  CLIP's text encoder is reused below ↓
-                       │
-        ╔══════════════╪══════════════════════════╗
-        ║  Q2: HOW DO WE GENERATE THEM?           ║
-        ╚══════════════╪══════════════════════════╝
-                       │
-              DIFFUSION: destroy with noise,
-              learn to reverse it
-                       │
-        forward q: FIXED, no parameters
-        x_t = √(ᾱ_t) x_0 + √(1-ᾱ_t) ε   ← closed form
-                    ↑                      = cheap training
-        reverse p_θ: LEARNED
-        L = E‖ε - ε_θ(x_t,t)‖²          ← plain MSE
-                       │
-        ┌──────────────┴─────────────────────────┐
-        │  THE WHOLE MODEL IS AN ε-PREDICTOR.    │
-        │  Everything below is built AROUND it.   │
-        └──────────────┬─────────────────────────┘
-                       │
-   ┌───────┬───────────┼───────────┬─────────────┬──────────┐
-   │       │           │           │             │          │
-WHAT IT  HOW YOU    HOW HARD   WHERE IT      WHAT KIND   HOW YOU
-PREDICTS  STEP      IT OBEYS    RUNS        OF NETWORK   STEER IT
-   │       │           │           │             │          │
- ε/x₀/v  samplers     CFG      LATENT        U-Net       text →
- targets    │       ε̂=ε_∅+w(   diffusion    (skips carry  cross-attn
-   │     DDPM 1000   ε_txt-ε_∅) 786k→16k    hi-freq        │
- schedules  ↓         │        = 48×        detail)     ControlNet
- (cosine  DDIM 50   w≈7-8         │            │        (structure)
-  beats     ↓      faithful   ⇒ Stable      → DiT        │
-  linear) DPM++ 20  vs        Diffusion    (patchify,   IP-Adapter
-   │         ↓      diverse    on a         adaLN-Zero,  (style)
- Min-SNR  ── retrain ──         consumer     scales like    │
- caps     distill 4             GPU          an LLM)     they COMPOSE
- weights  consistency 1-4                       │           │
-   │      ADD/GAN 1-4                    SD3, Flux, Sora    │
- zero-      │                                   │           │
- terminal  ~1000 → 1                     VIDEO = spacetime  │
- SNR fixes                               patches (same      │
- "no dark                                model, 3-D grid)   │
-  images"                                temporal consistency
-                                         UNSOLVED           │
-                                                            │
-                              EDITING (no new model): ──────┘
-                              img2img (one strength dial)
-                              inpaint (mask + re-noise)
-                              instruct (dual guidance)
-                              DDIM inversion (exact)
-                       │
-        ╔══════════════╪══════════════╗
-        ║  DIFFUSION COMES BACK FOR   ║
-        ║  TEXT                       ║
-        ╚══════════════╪══════════════╝
-                       │
-          mask instead of Gaussian noise
-          parallel unmasking, native infilling
-                       │
-          BUT: no streaming, no KV cache,
-          behind on open-ended quality
-          → hybrids; structured output
-                       │
-        ╔══════════════╪══════════════╗
-        ║  HOW DO WE KNOW IT WORKS?   ║
-        ╚══════════════╪══════════════╝
-                       │
-     FID (blind to prompt) · CLIP-score (gameable)
-     precision/recall (quality vs coverage)
-     GenEval (composition) · HUMAN PREFERENCE
-     → report a BASKET, each is gameable alone
-                       │
-     benchmarks SATURATE, get contaminated, get gamed
-                       │
-                       ▼
-              NEXT: these models are
-              POWERFUL but PASSIVE.
-              What if they could ACT?
-                    → AGENTS
+```mermaid
+flowchart TD
+    ONE["<b>One idea: if you can tokenise it, a transformer can model it</b><br/><small>text → sub-words · image → patches · audio → frames</small>"]
+    ONE --> Q1["<b>Q1 · How do we fuse modalities?</b>"]
+    Q1 --> CLIP["<b>CLIP</b><br/><small>contrastive: pull the diagonal, push the rest · 400M pairs · InfoNCE · ⇒ zero-shot (the classifier head became a sentence)</small>"]
+    Q1 --> FUSE["<b>Fusion patterns</b>"]
+    FUSE --> MOD["<b>Modular</b> (LLaVA) — frozen LLM + projection<br/><small>cheap, capped</small>"]
+    FUSE --> UNI["<b>Unified</b> (GPT-4o, Gemini) — joint pretraining, any-to-any"]
+    FUSE --> AUD["<b>Audio</b>: cascade (2.2 s, prosody lost) → native speech-to-speech (0.3 s)"]
+    CLIP -.->|"CLIP's text encoder is reused below"| Q2
+    Q2["<b>Q2 · How do we generate them?</b>"]
+    Q2 --> DIF["<b>Diffusion</b> — destroy with noise, learn to reverse<br/><small>forward q: fixed, closed form (cheap training) · reverse p_θ: learned, plain MSE L = E‖ε − ε_θ(x_t,t)‖²</small>"]
+    DIF --> CORE["<b>The whole model is an ε-predictor</b> — everything below is built around it"]
+    CORE --> W1["<b>what it predicts</b> — ε / x₀ / v · schedules (cosine beats linear) · Min-SNR · zero-terminal SNR"]
+    CORE --> W2["<b>how you step</b> — DDPM 1000 → DDIM 50 → DPM++ 20 → (retrain) distill 4 → consistency 1"]
+    CORE --> W3["<b>how hard it obeys</b> — CFG: ε̂ = ε_∅ + w(ε_txt − ε_∅) · w ≈ 7–8 · faithful vs diverse"]
+    CORE --> W4["<b>where it runs</b> — latent diffusion 786k → 16k (48×) ⇒ Stable Diffusion on a consumer GPU"]
+    CORE --> W5["<b>what kind of network</b> — U-Net (skips carry detail) → DiT (patchify, adaLN-Zero, scales like an LLM) ⇒ SD3, Flux, Sora · video = spacetime patches (temporal consistency unsolved)"]
+    CORE --> W6["<b>how you steer it</b> — text → cross-attn · ControlNet (structure) · IP-Adapter (style) · they compose · editing needs no new model (img2img, inpaint, instruct, DDIM inversion)"]
+    CORE --> TXT["<b>Diffusion comes back for text</b> — mask instead of Gaussian noise · parallel unmasking · but no streaming / no KV cache → hybrids"]
+    TXT --> EVAL["<b>How do we know it works?</b><br/><small>FID (blind to prompt) · CLIP-score (gameable) · precision / recall · GenEval · human preference → report a basket · benchmarks saturate, get contaminated, get gamed</small>"]
+    EVAL --> NEXT(["these models are powerful but passive — what if they could act? → agents"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class Q1,Q2,DIF,CORE,NEXT k
 ```
 
 ### Walking through it
