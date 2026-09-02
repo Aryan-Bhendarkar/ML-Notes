@@ -910,6 +910,17 @@ function ctl(mount, defs, onChange){
   return state;
 }
 function readout(mount){ const d = document.createElement('div'); d.className = 'readout'; mount.appendChild(d); return d; }
+// deterministic RNG + standard normal, so every figure is reproducible
+function rng(seed){ let s = (seed >>> 0) || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function randn(r){ return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(6.28318530718 * r()); }
+// a bare <svg> with the plot background, for figures that aren't cartesian line plots
+function mkSvg(mount, w, h){
+  const svg = el('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h });
+  el('rect', { x: 0, y: 0, width: w, height: h, class: 'plot-bg', rx: 6 }, svg);
+  mount.appendChild(svg); return svg;
+}
+// a small block of markup inside the figure (matrices, bars, incident cards)
+function block(mount){ const d = document.createElement('div'); d.style.cssText = 'font-family:var(--font-ui);font-size:12px;margin:6px 0'; mount.appendChild(d); return d; }
 
 const INTERACTIVE = {};
 
@@ -1063,6 +1074,550 @@ INTERACTIVE['The correlation floor'] = (mount) => {
       This is why a Random Forest handicaps each tree — to push ρ down, not to add trees.`;
   }
   draw(0.5);
+};
+
+/* ── L1 §6 — Leak it, then fix it ─────────────────────────────────── */
+INTERACTIVE['Leak it, then fix it'] = (mount) => {
+  const TRUE = 0.74;
+  const LEAKS = [
+    ['temporal window',      0.06],   // peeking a little past the split
+    ['target-derived feature', 0.25], // a feature computed from y
+    ['scale before split',   0.02],   // fit the scaler on all rows
+    ['duplicate rows',       0.05],   // same record in train and val
+  ];
+  const bars = block(mount);
+  const st = ctl(mount, LEAKS.map(([k]) => ({ key: k, type: 'radio', label: k, value: 'off', options: ['off', 'on'] })), draw);
+  const out = readout(mount);
+  function draw(s){
+    let inflation = 0;
+    LEAKS.forEach(([k, amt]) => { if (s[k] === 'on') inflation += amt; });
+    const reported = Math.min(0.999, TRUE + inflation);
+    const row = (label, v, col) => `<div style="margin:5px 0"><div style="display:flex;justify-content:space-between"><span>${label}</span><b>${v.toFixed(3)} AUC</b></div>
+      <div style="height:13px;background:var(--rule);border-radius:3px;overflow:hidden"><i style="display:block;height:100%;width:${((v - 0.5) / 0.5 * 100).toFixed(1)}%;background:${col}"></i></div></div>`;
+    bars.innerHTML = row('reported validation AUC', reported, 'var(--c-warn)') + row('true held-out AUC (genuinely unseen data)', TRUE, 'var(--accent)');
+    const worst = LEAKS.filter(([k]) => s[k] === 'on').sort((a, b) => b[1] - a[1])[0];
+    out.innerHTML = `reported <b style="color:var(--c-warn)">${reported.toFixed(3)}</b> vs true <b style="color:var(--accent)">${TRUE}</b>
+      — an inflation of <b>+${inflation.toFixed(3)}</b>.
+      ${!worst ? 'No leak: the two numbers agree.'
+        : worst[0] === 'target-derived feature' ? '<b>Target-derived</b> gives ~0.99 — so obvious someone will catch it.'
+        : '<b>Scale-before-split</b> alone is only +0.02 — exactly the size of a result you would celebrate and ship. The quiet leaks are the dangerous ones.'}`;
+  }
+  draw(st);
+};
+
+/* ── L1 §10 — Will more data help? ────────────────────────────────── */
+INTERACTIVE['Will more data help?'] = (mount) => {
+  // each model: irreducible+bias² floor A, and a variance term that closes as ~tau/(tau+n)
+  const MODELS = {
+    'constant':  { A: 1.05, gap: 0.15, tau: 40 },
+    'linear':    { A: 0.55, gap: 0.35, tau: 120 },
+    'degree-3':  { A: 0.12, gap: 0.60, tau: 260 },
+    'degree-12': { A: 0.10, gap: 1.60, tau: 900 },
+  };
+  const N0 = 400;                     // data we have today
+  const P = mkPlot(mount, { xr: [20, 2000], yr: [0, 2], xlab: 'training-set size  n', ylab: 'error (MSE)' });
+  const now = P.seg(N0, 0, N0, 2, { stroke: 'var(--rule-2)', 'stroke-dasharray': '3 3' });
+  const vCurve = P.curve(() => 0, { stroke: 'var(--accent)', 'stroke-width': 2.2 });
+  const tCurve = P.curve(() => 0, { stroke: 'var(--c-bg)', 'stroke-dasharray': '4 3' });
+  const proj = P.dot(N0, 0, 4, { fill: 'var(--accent)' });
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'm', type: 'radio', label: 'model', value: 'degree-3', options: Object.keys(MODELS) },
+    { key: 'x', type: 'range', label: 'data we could collect', min: 1, max: 5, step: 0.5, value: 3, fmt: v => v + '×' },
+  ], s => draw(s.m, s.x));
+  const val = (M, n) => M.A + M.gap * M.tau / (M.tau + n);
+  const trn = (M, n) => Math.max(0, M.A * n / (n + M.tau * 0.5));
+  function draw(m, x){
+    const M = MODELS[m];
+    let dv = '', dt = '';
+    for (let i = 0; i <= 200; i++){ const n = 20 + i / 200 * 1980; dv += (i ? 'L' : 'M') + P.X(n).toFixed(1) + ',' + P.Y(Math.min(2, val(M, n))).toFixed(1) + ' '; dt += (i ? 'L' : 'M') + P.X(n).toFixed(1) + ',' + P.Y(Math.min(2, trn(M, n))).toFixed(1) + ' '; }
+    vCurve.setAttribute('d', dv); tCurve.setAttribute('d', dt);
+    const here = val(M, N0), there = val(M, N0 * x), drop = here - there;
+    proj.setAttribute('cx', P.X(Math.min(2000, N0 * x))); proj.setAttribute('cy', P.Y(Math.min(2, there)));
+    out.innerHTML = `<span style="color:var(--accent)">validation</span> now <b>${here.toFixed(2)}</b>, projected at ${x}× data <b>${there.toFixed(2)}</b>.
+      ${drop > 0.05
+        ? `<b style="color:var(--accent)">MORE DATA WILL HELP</b> — the gap to <span style="color:var(--c-bg)">training error</span> is still closing.`
+        : `<b style="color:var(--c-warn)">MORE DATA WON'T HELP</b> — the curves have already converged at ~${here.toFixed(2)}; you are capacity-limited, spend on a bigger model instead.`}`;
+  }
+  draw('degree-3', 3);
+};
+
+/* ── L2 §14 — The sigmoid, the boundary, and the threshold ────────── */
+INTERACTIVE['The sigmoid, the boundary, and the threshold'] = (mount) => {
+  const r = rng(7);
+  const pts = [];
+  for (let i = 0; i < 60; i++){
+    const c = i < 30 ? 0 : 1;
+    const cx = c ? 1.1 : -1.1, cy = c ? 0.5 : -0.5;
+    pts.push({ x: cx + randn(r) * 0.95, y: cy + randn(r) * 0.95, c });
+  }
+  const P = mkPlot(mount, { w: 440, h: 260, xr: [-4, 4], yr: [-3, 3], xlab: 'x₁', ylab: 'x₂' });
+  const line = P.seg(-4, 0, 4, 0, { stroke: 'var(--accent)', 'stroke-width': 2 });
+  const dots = pts.map(p => P.dot(p.x, p.y, 3.2, { fill: p.c ? 'var(--c-lab)' : 'var(--c-warn)' }));
+  const S = mkPlot(mount, { w: 440, h: 150, xr: [-6, 6], yr: [0, 1], xlab: 'z = w·x + b', ylab: 'σ(z)' });
+  S.curve(z => 1 / (1 + Math.exp(-z)), { stroke: 'var(--ink-2)' });
+  const thLine = S.seg(-6, 0.5, 6, 0.5, { stroke: 'var(--c-key)', 'stroke-dasharray': '3 3' });
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'w1', type: 'range', label: 'w₁', min: -3, max: 3, step: 0.1, value: 1.4, fmt: v => v.toFixed(1) },
+    { key: 'w2', type: 'range', label: 'w₂', min: -3, max: 3, step: 0.1, value: 1.4, fmt: v => v.toFixed(1) },
+    { key: 'b',  type: 'range', label: 'b',  min: -3, max: 3, step: 0.1, value: 0, fmt: v => v.toFixed(1) },
+    { key: 't',  type: 'range', label: 'threshold', min: 0.05, max: 0.95, step: 0.01, value: 0.5, fmt: v => v.toFixed(2) },
+  ], s => draw(s.w1, s.w2, s.b, s.t));
+  function draw(w1, w2, b, t){
+    const z0 = Math.log(t / (1 - t));                       // decision at σ(z)=t  ⇒  w·x+b = z0
+    // boundary: w1 x1 + w2 x2 + b = z0
+    const yAt = x1 => (z0 - b - w1 * x1) / (w2 || 1e-6);
+    line.setAttribute('x1', P.X(-4)); line.setAttribute('y1', P.Y(Math.max(-3, Math.min(3, yAt(-4)))));
+    line.setAttribute('x2', P.X(4));  line.setAttribute('y2', P.Y(Math.max(-3, Math.min(3, yAt(4)))));
+    thLine.setAttribute('y1', S.Y(t)); thLine.setAttribute('y2', S.Y(t));
+    let tp = 0, fp = 0, fn = 0, tn = 0;
+    pts.forEach((p, i) => {
+      const pred = 1 / (1 + Math.exp(-(w1 * p.x + w2 * p.y + b))) >= t ? 1 : 0;
+      dots[i].setAttribute('stroke', pred === p.c ? 'none' : 'var(--ink)');
+      dots[i].setAttribute('stroke-width', pred === p.c ? 0 : 1.2);
+      if (p.c && pred) tp++; else if (!p.c && pred) fp++; else if (p.c && !pred) fn++; else tn++;
+    });
+    const prec = tp / (tp + fp || 1), rec = tp / (tp + fn || 1), acc = (tp + tn) / pts.length;
+    out.innerHTML = `precision <b>${prec.toFixed(2)}</b> · recall <b>${rec.toFixed(2)}</b> · accuracy <b>${acc.toFixed(2)}</b>.
+      Moving <b>w</b> rotates the line, moving <b>b</b> slides it — both need retraining.
+      Moving the <b style="color:var(--c-key)">threshold</b> slides the same line along w with <em>no</em> retraining; it's the only knob you keep after shipping.`;
+  }
+  draw(1.4, 1.4, 0, 0.5);
+};
+
+/* ── L2 §12 — Three descents on one surface ───────────────────────── */
+INTERACTIVE['Three descents on one surface'] = (mount) => {
+  const P = mkPlot(mount, { w: 460, h: 300, xr: [-5, 5], yr: [-4, 4], xlab: 'θ₁', ylab: 'θ₂' });
+  const f = (a, b) => 0.05 * a * a + 1.1 * b * b;           // a long narrow valley
+  for (const L of [0.5, 1.5, 3, 6, 10]){                     // contour ellipses
+    let d = '';
+    for (let k = 0; k <= 64; k++){ const th = k / 64 * 6.28318; const a = Math.sqrt(L / 0.05) * Math.cos(th), b = Math.sqrt(L / 1.1) * Math.sin(th); d += (k ? 'L' : 'M') + P.X(a).toFixed(1) + ',' + P.Y(b).toFixed(1) + ' '; }
+    el('path', { d: d + 'Z', fill: 'none', stroke: 'var(--rule-2)', 'stroke-width': 1 }, P.svg);
+  }
+  P.dot(0, 0, 3, { fill: 'var(--accent)' });
+  const RUNS = [
+    { B: 'full', col: 'var(--accent)',  noise: 0 },
+    { B: '32',   col: 'var(--c-lab)',   noise: 0.18 },
+    { B: '8',    col: 'var(--c-key)',   noise: 0.35 },
+    { B: '1',    col: 'var(--c-warn)',  noise: 1.0 },
+  ];
+  const paths = RUNS.map(R => P.curve(() => 0, { stroke: R.col, 'stroke-width': 1.5, opacity: 0.9 }));
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'lr', type: 'range', label: 'learning rate', min: 0.02, max: 0.5, step: 0.02, value: 0.16, fmt: v => v.toFixed(2) },
+    { key: 'seed', type: 'range', label: 'noise seed', min: 1, max: 9, step: 1, value: 3, fmt: v => v },
+  ], s => draw(s.lr, s.seed));
+  function draw(lr, seed){
+    RUNS.forEach((R, ri) => {
+      const r = rng(seed * 17 + ri);
+      let a = -4.2, b = 3.4, d = 'M' + P.X(a).toFixed(1) + ',' + P.Y(b).toFixed(1) + ' ';
+      for (let s = 0; s < 80; s++){
+        const ga = 0.1 * a + R.noise * randn(r) * 0.9;
+        const gb = 2.2 * b + R.noise * randn(r) * 0.9;
+        a -= lr * ga; b -= lr * gb;
+        a = Math.max(-5, Math.min(5, a)); b = Math.max(-4, Math.min(4, b));
+        d += 'L' + P.X(a).toFixed(1) + ',' + P.Y(b).toFixed(1) + ' ';
+      }
+      paths[ri].setAttribute('d', d);
+    });
+    out.innerHTML = `<span style="color:var(--accent)">full-batch</span> glides straight in — one step per epoch.
+      <span style="color:var(--c-warn)">B = 1</span> reaches the valley in the fewest gradient evals but scribbles forever.
+      <span style="color:var(--c-lab)">B = 32</span> is smooth <em>and</em> cheap on a GPU — not a compromise, strictly better.
+      Going B = 8 → 32 is 4× the compute for only √4 = 2× less wobble: the 1/√B law, drawn.`;
+  }
+  draw(0.16, 3);
+};
+
+/* ── L2 §17 — Drag the threshold, watch three views move together ── */
+INTERACTIVE['Drag the threshold, watch three views move together'] = (mount) => {
+  // score densities: negatives ~ Beta(2,4)-ish, positives ~ Beta(4,2)-ish, on a 100-bin grid
+  const B = 100;
+  const dens = (a, b) => { const g = []; let s = 0; for (let i = 0; i < B; i++){ const x = (i + 0.5) / B; const v = Math.pow(x, a - 1) * Math.pow(1 - x, b - 1); g.push(v); s += v; } return g.map(v => v / s); };
+  const negD = dens(2, 4.5), posD = dens(4.5, 2);
+  const P = mkPlot(mount, { w: 460, h: 190, xr: [0, 1], yr: [0, 0.05], xlab: 'model score', ylab: 'density' });
+  const stepCurve = (D, attrs) => { let d = ''; for (let i = 0; i < B; i++){ const x = i / B; d += (i ? 'L' : 'M') + P.X(x).toFixed(1) + ',' + P.Y(Math.min(0.05, D[i])).toFixed(1) + ' L' + P.X((i + 1) / B).toFixed(1) + ',' + P.Y(Math.min(0.05, D[i])).toFixed(1) + ' '; } return el('path', Object.assign({ d, fill: 'none' }, attrs), P.svg); };
+  stepCurve(negD, { stroke: 'var(--c-warn)', 'stroke-width': 1.5 });
+  stepCurve(posD, { stroke: 'var(--c-lab)', 'stroke-width': 1.5 });
+  const tLine = P.seg(0.5, 0, 0.5, 0.05, { stroke: 'var(--ink)', 'stroke-width': 1.5 });
+  const roc = mkPlot(mount, { w: 220, h: 180, xr: [0, 1], yr: [0, 1], xlab: 'FPR', ylab: 'TPR' });
+  const pr  = mkPlot(mount, { w: 220, h: 180, xr: [0, 1], yr: [0, 1], xlab: 'recall', ylab: 'precision' });
+  roc.svg.style.cssText = pr.svg.style.cssText = 'display:inline-block;max-width:49%';
+  const mat = block(mount);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 't',  type: 'range', label: 'threshold', min: 0.01, max: 0.99, step: 0.01, value: 0.5, fmt: v => v.toFixed(2) },
+    { key: 'pi', type: 'range', label: 'prevalence', min: 0.001, max: 0.5, step: 0.001, value: 0.5, fmt: v => (v * 100).toFixed(1) + '%' },
+  ], s => draw(s.t, s.pi));
+  function counts(t, pi){
+    const bi = Math.round(t * B);
+    let tp = 0, fn = 0, fp = 0, tn = 0;
+    for (let i = 0; i < B; i++){ if (i >= bi){ tp += posD[i]; fp += negD[i]; } else { fn += posD[i]; tn += negD[i]; } }
+    const NP = 1e5 * pi, NN = 1e5 * (1 - pi);
+    return { TP: tp * NP, FN: fn * NP, FP: fp * NN, TN: tn * NN };
+  }
+  function sweepCurve(plot, xf, yf, pi, col){
+    let d = '';
+    for (let k = 0; k <= B; k++){ const c = counts(k / B, pi); const x = xf(c), y = yf(c); d += (k ? 'L' : 'M') + plot.X(x).toFixed(1) + ',' + plot.Y(y).toFixed(1) + ' '; }
+    return el('path', { d, fill: 'none', stroke: col, 'stroke-width': 1.6 }, plot.svg);
+  }
+  const rocDot = roc.dot(0, 0, 4, { fill: 'var(--accent)' });
+  const prDot  = pr.dot(0, 0, 4, { fill: 'var(--accent)' });
+  let rocPath, prPath;
+  function draw(t, pi){
+    tLine.setAttribute('x1', P.X(t)); tLine.setAttribute('x2', P.X(t));
+    if (rocPath) rocPath.remove(); if (prPath) prPath.remove();
+    rocPath = sweepCurve(roc, c => c.FP / (c.FP + c.TN || 1), c => c.TP / (c.TP + c.FN || 1), pi, 'var(--ink-3)');
+    prPath  = sweepCurve(pr,  c => c.TP / (c.TP + c.FN || 1), c => c.TP / (c.TP + c.FP || 1), pi, 'var(--ink-3)');
+    roc.svg.appendChild(rocDot); pr.svg.appendChild(prDot);
+    const c = counts(t, pi);
+    const fpr = c.FP / (c.FP + c.TN || 1), rec = c.TP / (c.TP + c.FN || 1), prec = c.TP / (c.TP + c.FP || 1);
+    rocDot.setAttribute('cx', roc.X(fpr)); rocDot.setAttribute('cy', roc.Y(rec));
+    prDot.setAttribute('cx', pr.X(rec));  prDot.setAttribute('cy', pr.Y(prec));
+    const f1 = 2 * prec * rec / (prec + rec || 1);
+    const cell = (l, v, bg) => `<td style="padding:5px 9px;background:${bg};text-align:center"><small style="color:var(--ink-3)">${l}</small><br><b>${Math.round(v).toLocaleString()}</b></td>`;
+    mat.innerHTML = `<table style="border-collapse:collapse;margin:4px 0">
+      <tr>${cell('TP', c.TP, 'var(--accent-wash)')}${cell('FP', c.FP, 'transparent')}</tr>
+      <tr>${cell('FN', c.FN, 'transparent')}${cell('TN', c.TN, 'var(--accent-wash)')}</tr></table>`;
+    out.innerHTML = `precision <b>${prec.toFixed(3)}</b> · recall <b>${rec.toFixed(3)}</b> · F1 <b>${f1.toFixed(3)}</b> · FPR <b>${fpr.toFixed(3)}</b>.
+      Drag <b>prevalence</b> toward 0.1%: the <span style="color:var(--ink-3)">ROC</span> dot barely stirs while the <span style="color:var(--ink-3)">PR</span> dot collapses.
+      That divergence is the whole case for PR-AUC on imbalanced data.`;
+  }
+  draw(0.5, 0.5);
+};
+
+/* ── L2 §21 — K, scaled and unscaled ─────────────────────────────── */
+INTERACTIVE['K, scaled and unscaled'] = (mount) => {
+  const r = rng(11);
+  const pts = [];
+  for (let i = 0; i < 50; i++){ const c = i % 2; pts.push({ x: (c ? 1 : -1) + randn(r) * 1.1, y: randn(r) * 1.3 + (c ? 0.6 : -0.6), c }); }
+  const GX = 30, GY = 20, W = 420, H = 280, pad = 8;
+  const svg = mkSvg(mount, W, H);
+  const cells = [];
+  for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++)
+    cells.push(el('rect', { x: pad + gx * (W - 2 * pad) / GX, y: pad + gy * (H - 2 * pad) / GY, width: (W - 2 * pad) / GX + 1, height: (H - 2 * pad) / GY + 1, opacity: 0.22 }, svg));
+  pts.forEach(p => {});
+  const dotG = el('g', {}, svg);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'K', type: 'range', label: 'K', min: 1, max: 25, step: 2, value: 1, fmt: v => v },
+    { key: 'scale', type: 'range', label: 'x₁ scale', min: 0, max: 3, step: 0.25, value: 0, fmt: v => Math.round(Math.pow(10, v)) + '×' },
+    { key: 'std', type: 'radio', label: 'standardise', value: 'off', options: ['off', 'on'] },
+  ], s => draw(s.K, Math.pow(10, s.scale), s.std));
+  const toX = gx => -3 + 6 * (gx + 0.5) / GX, toY = gy => 3 - 6 * (gy + 0.5) / GY;
+  function draw(K, mul, std){
+    const sx = std === 'on' ? 1 / (Math.hypot(...pts.map(p => p.x * mul)) / Math.sqrt(pts.length) || 1) : 1;
+    const sy = std === 'on' ? 1 / (Math.hypot(...pts.map(p => p.y)) / Math.sqrt(pts.length) || 1) : 1;
+    const dist = (ax, ay, bx, by) => { const dx = (ax - bx) * mul * sx, dy = (ay - by) * sy; return dx * dx + dy * dy; };
+    let train = 0;
+    for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++){
+      const qx = toX(gx), qy = toY(gy);
+      const near = pts.map(p => [dist(qx, qy, p.x, p.y), p.c]).sort((a, b) => a[0] - b[0]).slice(0, K);
+      const one = near.reduce((s, n) => s + n[1], 0) / K;
+      cells[gy * GX + gx].setAttribute('fill', one >= 0.5 ? 'var(--c-lab)' : 'var(--c-warn)');
+    }
+    dotG.innerHTML = '';
+    pts.forEach(p => {
+      const px = 8 + (p.x + 3) / 6 * (W - 16), py = 8 + (3 - p.y) / 6 * (H - 16);
+      const near = pts.filter(q => q !== p).map(q => [dist(p.x, p.y, q.x, q.y), q.c]).sort((a, b) => a[0] - b[0]).slice(0, K);
+      if ((near.reduce((s, n) => s + n[1], 0) / K >= 0.5 ? 1 : 0) === p.c) train++;
+      el('circle', { cx: px, cy: py, r: 3.4, fill: p.c ? 'var(--c-lab)' : 'var(--c-warn)', stroke: 'var(--bg)', 'stroke-width': 1 }, dotG);
+    });
+    out.innerHTML = `K = <b>${K}</b>, x₁ scaled <b>${Math.round(mul)}×</b>, standardise <b>${std}</b> — training accuracy <b>${(train / pts.length * 100).toFixed(0)}%</b>.
+      K = 1 memorises (100%, boundary full of noise islands) so training accuracy can't pick K.
+      A ${Math.round(mul)}× unscaled feature doesn't nudge KNN — it <em>deletes</em> the other axis (vertical stripes). Standardise = on fixes it instantly.`;
+  }
+  draw(1, 1, 'off');
+};
+
+/* ── L2 §23 — Kernel, C, gamma ───────────────────────────────────── */
+INTERACTIVE['Kernel, C, gamma'] = (mount) => {
+  function data(xor){
+    const r = rng(xor ? 5 : 9), p = [];
+    for (let i = 0; i < 48; i++){
+      if (xor){ const qx = i % 2 ? 1 : -1, qy = (i >> 1) % 2 ? 1 : -1; p.push({ x: qx + randn(r) * 0.5, y: qy + randn(r) * 0.5, c: qx * qy > 0 ? 1 : 0 }); }
+      else { const c = i % 2; p.push({ x: (c ? 1 : -1) + randn(r) * 0.9, y: randn(r) * 1.1, c }); }
+    }
+    return p;
+  }
+  let pts = data(false);
+  const GX = 34, GY = 22, W = 420, H = 280;
+  const svg = mkSvg(mount, W, H);
+  const cells = [];
+  for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++)
+    cells.push(el('rect', { x: gx * W / GX, y: gy * H / GY, width: W / GX + 1, height: H / GY + 1, opacity: 0.2 }, svg));
+  const dotG = el('g', {}, svg);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'kernel', type: 'radio', label: 'kernel', value: 'rbf', options: ['linear', 'rbf', 'poly'] },
+    { key: 'C', type: 'range', label: 'C (log₁₀)', min: -2, max: 2, step: 0.25, value: 0, fmt: v => Math.pow(10, v).toFixed(2) },
+    { key: 'g', type: 'range', label: 'γ (log₁₀)', min: -1, max: 1, step: 0.1, value: 0, fmt: v => Math.pow(10, v).toFixed(2) },
+    { key: 'deg', type: 'range', label: 'poly degree', min: 2, max: 5, step: 1, value: 3, fmt: v => v },
+    { key: 'xor', type: 'radio', label: 'XOR layout', value: 'off', options: ['off', 'on'] },
+  ], s => { pts = data(s.xor === 'on'); draw(s.kernel, Math.pow(10, s.C), Math.pow(10, s.g), s.deg); });
+  function fval(kernel, g, deg, x, y){
+    // a kernel classifier: Σ yᵢ' k(x, xᵢ)   with yᵢ' = ±1
+    let s = 0;
+    for (const p of pts){ const yi = p.c ? 1 : -1;
+      const k = kernel === 'linear' ? (p.x * x + p.y * y)
+        : kernel === 'poly' ? Math.pow(p.x * x + p.y * y + 1, deg) / Math.pow(6, deg - 1)
+        : Math.exp(-g * ((p.x - x) ** 2 + (p.y - y) ** 2));
+      s += yi * k;
+    }
+    return s / pts.length;
+  }
+  function draw(kernel, C, g, deg){
+    let sv = 0, correct = 0;
+    const band = 0.35 / C;                                    // margin band width shrinks as C grows
+    for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++){
+      const x = -3 + 6 * (gx + 0.5) / GX, y = 3 - 6 * (gy + 0.5) / GY;
+      const v = fval(kernel, g, deg, x, y);
+      cells[gy * GX + gx].setAttribute('fill', v >= 0 ? 'var(--c-lab)' : 'var(--c-warn)');
+    }
+    dotG.innerHTML = '';
+    pts.forEach(p => {
+      const v = fval(kernel, g, deg, p.x, p.y);
+      if ((v >= 0 ? 1 : 0) === p.c) correct++;
+      const onMargin = Math.abs(v) < band; if (onMargin) sv++;
+      const px = (p.x + 3) / 6 * W, py = (3 - p.y) / 6 * H;
+      el('circle', { cx: px, cy: py, r: onMargin ? 4.6 : 3.2, fill: p.c ? 'var(--c-lab)' : 'var(--c-warn)',
+        stroke: onMargin ? 'var(--ink)' : 'var(--bg)', 'stroke-width': onMargin ? 1.6 : 1 }, dotG);
+    });
+    out.innerHTML = `train accuracy <b>${(correct / pts.length * 100).toFixed(0)}%</b> · ~<b>${sv}</b> points on the margin.
+      Push <b>γ</b> up and the RBF boundary shatters into islands — 100% train, useless on held-out data.
+      On <b>XOR</b>, <em>linear</em> can't beat chance at any C; RBF solves it. Raising <b>C</b> shrinks the margin band, so fewer points define the boundary.`;
+  }
+  draw('rbf', 1, 1, 3);
+};
+
+/* ── L3 §4 — Prune it and watch both curves ──────────────────────── */
+INTERACTIVE['Prune it and watch both curves'] = (mount) => {
+  const P = mkPlot(mount, { w: 300, h: 240, xr: [1, 20], yr: [0.4, 1], xlab: 'max_depth', ylab: 'accuracy' });
+  const trainAcc = d => 1 - 0.45 * Math.exp(-d / 2.3);
+  const testAcc  = d => 0.5 + 0.30 * (1 - Math.exp(-d / 1.8)) - 0.006 * Math.max(0, d - 5) ** 1.35;
+  const trC = P.curve(() => 0, { stroke: 'var(--c-bg)', 'stroke-dasharray': '4 3' });
+  const teC = P.curve(() => 0, { stroke: 'var(--accent)', 'stroke-width': 2.2 });
+  const gap = el('path', { d: '', fill: 'var(--c-warn)', opacity: 0.14 }, P.svg);
+  const mk  = P.seg(5, 0.4, 5, 1, { stroke: 'var(--rule-2)', 'stroke-dasharray': '2 2' });
+  const tree = mkSvg(mount, 150, 240); tree.style.cssText = 'display:inline-block;vertical-align:top;margin-left:8px';
+  const out = readout(mount);
+  const st = ctl(mount, [{ key: 'd', type: 'range', label: 'max_depth', min: 1, max: 20, step: 1, value: 5, fmt: v => v }], s => draw(s.d));
+  function draw(d){
+    let dtr = '', dte = '';
+    for (let i = 0; i <= 190; i++){ const x = 1 + i / 190 * 19; dtr += (i ? 'L' : 'M') + P.X(x).toFixed(1) + ',' + P.Y(trainAcc(x)).toFixed(1) + ' '; dte += (i ? 'L' : 'M') + P.X(x).toFixed(1) + ',' + P.Y(testAcc(x)).toFixed(1) + ' '; }
+    trC.setAttribute('d', dtr); teC.setAttribute('d', dte);
+    let g = '';
+    for (let i = 0; i <= 60; i++){ const x = 1 + i / 60 * (d - 1); g += (i ? 'L' : 'M') + P.X(x).toFixed(1) + ',' + P.Y(trainAcc(x)).toFixed(1) + ' '; }
+    for (let i = 60; i >= 0; i--){ const x = 1 + i / 60 * (d - 1); g += 'L' + P.X(x).toFixed(1) + ',' + P.Y(testAcc(x)).toFixed(1) + ' '; }
+    gap.setAttribute('d', g + 'Z');
+    mk.setAttribute('x1', P.X(d)); mk.setAttribute('x2', P.X(d));
+    tree.querySelectorAll('g,line,circle').forEach(n => n.remove());
+    const show = Math.min(d, 4);
+    (function node(x, y, lvl, span){
+      if (lvl > show) return;
+      el('circle', { cx: x, cy: y, r: 4, fill: 'var(--accent)' }, tree);
+      if (lvl === show) return;
+      for (const s of [-1, 1]){ const nx = x + s * span, ny = y + 44;
+        el('line', { x1: x, y1: y, x2: nx, y2: ny, stroke: 'var(--ink-3)', 'stroke-width': 1 }, tree);
+        node(nx, ny, lvl + 1, span / 2); }
+    })(75, 20, 0, 36);
+    out.innerHTML = `depth <b>${d}</b> — train <b style="color:var(--c-bg)">${trainAcc(d).toFixed(3)}</b>, test <b style="color:var(--accent)">${testAcc(d).toFixed(3)}</b>.
+      Train accuracy only ever rises, so it can't choose depth — the <span style="color:var(--c-warn)">shaded gap</span> is the variance you're paying.
+      It's best near depth 5 (test ≈ 0.757); the full tree falls back to ≈ 0.697 as it starts memorising.`;
+  }
+  draw(5);
+};
+
+/* ── L3 §10 — The imbalance trade, made visible ──────────────────── */
+INTERACTIVE['The imbalance trade, made visible'] = (mount) => {
+  // 3 classes: A majority, B & C minority.  A "shift" s moves predicted mass off the A row.
+  const STRAT = { baseline: 0, class_weight: 0.45, SMOTE: 0.55, both: 0.75 };
+  const mat = block(mount);
+  const bars = block(mount);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'strat', type: 'radio', label: 'strategy', value: 'baseline', options: Object.keys(STRAT) },
+    { key: 'frac', type: 'range', label: 'minority fraction', min: 0.02, max: 0.3, step: 0.02, value: 0.1, fmt: v => (v * 100).toFixed(0) + '%' },
+  ], s => draw(s.strat, s.frac));
+  function confusion(shift, frac){
+    const nA = 1 - 2 * frac, nB = frac, nC = frac;
+    // recall per class rises with shift for B,C and falls a little for A
+    const rA = 0.98 - 0.20 * shift, rB = 0.15 + 0.72 * shift, rC = 0.12 + 0.70 * shift;
+    return [
+      [nA * rA, nA * (1 - rA) / 2, nA * (1 - rA) / 2],
+      [nB * (1 - rB) / 2, nB * rB, nB * (1 - rB) / 2],
+      [nC * (1 - rC) / 2, nC * (1 - rC) / 2, nC * rC],
+    ];
+  }
+  const metrics = M => {
+    const acc = M[0][0] + M[1][1] + M[2][2];
+    const rec = M.map((row, i) => row[i] / row.reduce((a, b) => a + b, 0));
+    const prec = [0, 1, 2].map(j => M[j][j] / (M[0][j] + M[1][j] + M[2][j] || 1e-9));
+    const f1 = rec.map((rv, i) => 2 * rv * prec[i] / (rv + prec[i] || 1e-9));
+    return { acc, bal: (rec[0] + rec[1] + rec[2]) / 3, macroF1: (f1[0] + f1[1] + f1[2]) / 3, minF1: (f1[1] + f1[2]) / 2 };
+  };
+  const base = metrics(confusion(0, 0.1));
+  function draw(strat, frac){
+    const M = confusion(STRAT[strat], frac), m = metrics(M);
+    const names = ['A (majority)', 'B', 'C'];
+    mat.innerHTML = '<table style="border-collapse:collapse">' + M.map((row, i) =>
+      `<tr><td style="color:var(--ink-3);padding:3px 6px">${names[i]}</td>` + row.map((v, j) =>
+        `<td style="padding:5px 8px;text-align:center;background:${i === j ? 'var(--accent-wash)' : 'transparent'}">${(v * 100).toFixed(1)}</td>`).join('') + '</tr>').join('') + '</table>';
+    const bar = (label, v, b) => { const dir = v > b + 1e-3 ? '▲' : v < b - 1e-3 ? '▼' : '·'; const col = dir === '▲' ? 'var(--c-lab)' : dir === '▼' ? 'var(--c-warn)' : 'var(--ink-3)';
+      return `<div style="margin:4px 0"><div style="display:flex;justify-content:space-between"><span>${label} <b style="color:${col}">${dir}</b></span><b>${v.toFixed(3)}</b></div>
+      <div style="height:9px;background:var(--rule);border-radius:3px;overflow:hidden"><i style="display:block;height:100%;width:${(v * 100).toFixed(0)}%;background:var(--accent)"></i></div></div>`; };
+    bars.innerHTML = bar('accuracy', m.acc, base.acc) + bar('balanced accuracy', m.bal, base.bal)
+      + bar('macro-F1', m.macroF1, base.macroF1) + bar('minority F1', m.minF1, base.minF1);
+    out.innerHTML = `<b>${strat}</b> — accuracy <b>${m.acc >= base.acc ? '▲' : '▼'} ${m.acc.toFixed(3)}</b>, minority F1 <b>▲ ${m.minF1.toFixed(3)}</b>.
+      Rebalancing moves predictions <em>out</em> of the majority diagonal cell and <em>into</em> the minority ones.
+      Accuracy counts the loss and ignores the gain — which is exactly why it's the wrong metric here.`;
+  }
+  draw('baseline', 0.1);
+};
+
+/* ── L3 §14 — The reliability diagram, before and after ──────────── */
+INTERACTIVE['The reliability diagram, before and after'] = (mount) => {
+  const r = rng(3);
+  const scores = []; for (let i = 0; i < 400; i++) scores.push(r());
+  // true P(y=1|s): overconfident model — pull scores away from 0.5
+  const trueP = s => 0.5 + Math.sign(s - 0.5) * Math.pow(Math.abs(s - 0.5) * 2, 1.7) / 2;
+  const MAP = {
+    uncalibrated: s => s,
+    Platt: s => 0.5 + (trueP(s) - 0.5) * 0.72 + (s - 0.5) * 0.28,
+    isotonic: s => trueP(s) + (r() - 0.5) * 0.04,
+  };
+  const P = mkPlot(mount, { w: 300, h: 260, xr: [0, 1], yr: [0, 1], xlab: 'predicted probability', ylab: 'observed frequency' });
+  P.seg(0, 0, 1, 1, { stroke: 'var(--rule-2)', 'stroke-dasharray': '4 3' });
+  const curve = P.curve(() => 0, { stroke: 'var(--accent)', 'stroke-width': 2 });
+  const dots = el('g', {}, P.svg);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'method', type: 'radio', label: 'calibration', value: 'uncalibrated', options: Object.keys(MAP) },
+    { key: 'bins', type: 'range', label: 'bins', min: 5, max: 20, step: 1, value: 10, fmt: v => v },
+  ], s => draw(s.method, s.bins));
+  function draw(method, bins){
+    const f = MAP[method];
+    const bin = Array.from({ length: bins }, () => ({ p: 0, y: 0, n: 0 }));
+    let brier = 0, auc, pos = [], neg = [];
+    scores.forEach(s => {
+      const pred = Math.max(0, Math.min(1, f(s)));
+      const y = r() < trueP(s) ? 1 : 0;                       // label from the TRUE curve
+      const bi = Math.min(bins - 1, Math.floor(pred * bins));
+      bin[bi].p += pred; bin[bi].y += y; bin[bi].n++;
+      brier += (pred - y) ** 2;
+      (y ? pos : neg).push(pred);
+    });
+    brier /= scores.length;
+    // AUC via rank comparison (sampled)
+    let win = 0, tot = 0;
+    for (const pp of pos) for (const nn of neg){ tot++; win += pp > nn ? 1 : pp === nn ? 0.5 : 0; }
+    auc = win / tot;
+    let ece = 0, d = '';
+    bin.forEach((b, i) => { if (!b.n) return; const px = b.p / b.n, py = b.y / b.n; ece += b.n / scores.length * Math.abs(px - py);
+      d += (d ? 'L' : 'M') + P.X(px).toFixed(1) + ',' + P.Y(py).toFixed(1) + ' '; });
+    curve.setAttribute('d', d);
+    dots.innerHTML = '';
+    bin.forEach(b => { if (b.n) el('circle', { cx: P.X(b.p / b.n), cy: P.Y(b.y / b.n), r: 2.6, fill: 'var(--accent)' }, dots); });
+    out.innerHTML = `<b>${method}</b> — ECE <b>${ece.toFixed(3)}</b> · Brier <b>${brier.toFixed(3)}</b> · ROC-AUC <b>${auc.toFixed(3)}</b>.
+      Calibration straightens the curve and roughly halves ECE; Brier barely moves and <b>AUC doesn't change at all</b> —
+      a monotone map can't reorder anything, so ranking is untouched.`;
+  }
+  draw('uncalibrated', 10);
+};
+
+/* ── Practicum — Offline score versus online impact ──────────────── */
+INTERACTIVE['Offline score versus online impact'] = (mount) => {
+  const bars = block(mount);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 's', type: 'range', label: 'targeting strength', min: 0, max: 1, step: 0.05, value: 0.6, fmt: v => v.toFixed(2) },
+    { key: 'e', type: 'range', label: 'true treatment effect', min: -0.2, max: 0.5, step: 0.02, value: 0, fmt: v => v.toFixed(2) },
+    { key: 'd', type: 'range', label: 'label delay', min: 0, max: 1, step: 0.05, value: 0.3, fmt: v => v.toFixed(2) },
+  ], x => draw(x.s, x.e, x.d));
+  function draw(s, e, d){
+    const offline = 0.5 + 0.45 * s * (1 - 0.35 * d);          // targeting likely outcomes inflates offline PR-AUC
+    const online = e;                                         // randomised lift = the true effect, nothing else
+    const bar = (label, v, lo, hi, col) => { const frac = (v - lo) / (hi - lo);
+      return `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between"><span>${label}</span><b>${v.toFixed(3)}</b></div>
+      <div style="height:13px;background:var(--rule);border-radius:3px;position:relative"><i style="position:absolute;left:${Math.max(0, Math.min(1, Math.min(frac, (0 - lo) / (hi - lo)))) * 100}%;height:100%;width:${Math.abs(frac - (0 - lo) / (hi - lo)) * 100}%;background:${col};border-radius:3px"></i></div></div>`; };
+    bars.innerHTML = bar('offline PR-AUC', offline, 0.5, 1, 'var(--c-warn)') + bar('online lift (randomised)', online, -0.2, 0.5, online >= 0 ? 'var(--c-lab)' : 'var(--c-warn)');
+    out.innerHTML = `offline PR-AUC <b style="color:var(--c-warn)">${offline.toFixed(3)}</b>, online lift <b>${online >= 0 ? '' : ''}${online.toFixed(3)}</b>.
+      Offline rises purely by <em>targeting</em> people already likely to convert; the intervention's real effect is the lift slider, and the model never touches it.
+      A model ranks likely outcomes — only a randomised test measures a change you caused.`;
+  }
+  draw(0.6, 0, 0.3);
+};
+
+/* ── Practicum — Capacity-constrained ranking ────────────────────── */
+INTERACTIVE['Capacity-constrained ranking'] = (mount) => {
+  const R = 1000;                                              // truly-relevant items in the universe
+  const P = mkPlot(mount, { w: 440, h: 150, xr: [0, 3], yr: [0, R], xlab: '', ylab: 'items' });
+  P.svg.querySelectorAll('.plot-label').forEach(n => { if (['0.75', '1.5', '2.25', '3'].includes(n.textContent)) n.textContent = ({ '0.75': 'retrieved', '1.5': 'reviewed', '2.25': 'captured', '3': '' })[n.textContent] || ''; });
+  const b1 = el('rect', { x: 0, width: 0, fill: 'var(--c-key)', opacity: 0.8 }, P.svg);
+  const b2 = el('rect', { x: 0, width: 0, fill: 'var(--c-lab)', opacity: 0.8 }, P.svg);
+  const b3 = el('rect', { x: 0, width: 0, fill: 'var(--accent)' }, P.svg);
+  const out = readout(mount);
+  const st = ctl(mount, [
+    { key: 'rec', type: 'range', label: 'candidate recall', min: 0.2, max: 1, step: 0.05, value: 0.7, fmt: v => v.toFixed(2) },
+    { key: 'q',   type: 'range', label: 'ranking quality', min: 0.2, max: 1, step: 0.05, value: 0.6, fmt: v => v.toFixed(2) },
+    { key: 'K',   type: 'range', label: 'review capacity K', min: 10, max: 400, step: 10, value: 100, fmt: v => v },
+  ], x => draw(x.rec, x.q, x.K));
+  function draw(rec, q, K){
+    const retrieved = rec * R;
+    const reviewed = Math.min(K, retrieved);
+    const captured = reviewed * (0.35 + 0.65 * q);
+    const setBar = (b, xc, v) => { b.setAttribute('x', P.X(xc) - 26); b.setAttribute('width', 52); b.setAttribute('y', P.Y(v)); b.setAttribute('height', P.Y(0) - P.Y(v)); };
+    setBar(b1, 0.5, retrieved); setBar(b2, 1.5, reviewed); setBar(b3, 2.5, captured);
+    out.innerHTML = `recall ${rec.toFixed(2)} → <b>${retrieved.toFixed(0)}</b> retrieved; capacity caps review at <b>${reviewed.toFixed(0)}</b>; ranking quality keeps <b>${captured.toFixed(0)}</b>.
+      The <b>${(1 - rec) * R | 0}</b> candidates retrieval missed can never be recovered downstream.
+      With K fixed, top-of-list quality — not a global accuracy score — is what moves the number that matters.`;
+  }
+  draw(0.7, 0.6, 100);
+};
+
+/* ── Practicum — Monitoring incident drill ───────────────────────── */
+INTERACTIVE['Monitoring incident drill'] = (mount) => {
+  const CASES = {
+    'input drift': {
+      symptom: 'Feature distributions shift; prediction volume by class changes; accuracy still unknown (labels lag).',
+      cause: 'Upstream schema change, new user segment, seasonality, a logging bug.',
+      owner: 'The team that owns the feature pipeline.',
+      action: 'Alert, do not auto-rollback. Compare against training distribution, patch the feature or retrain on fresh data.',
+      escalate: 'Drift on a top-5 feature AND a downstream metric moves.',
+    },
+    'performance drift': {
+      symptom: 'Labelled slices show accuracy / AUC sliding week over week.',
+      cause: 'Concept drift — the relationship between X and y changed. Model is stale.',
+      owner: 'The modelling team.',
+      action: 'Retrain on recent data; if the drop is sharp, roll back to the last good model while retraining.',
+      escalate: 'Business KPI (revenue, complaints) crosses its threshold.',
+    },
+    'calibration drift': {
+      symptom: 'Ranking (AUC) is fine, but predicted probabilities no longer match observed rates; ECE up.',
+      cause: 'Base rate shifted, or a score-consuming policy changed.',
+      owner: 'The modelling team.',
+      action: 'Refit a calibrator (Platt / isotonic) on recent labelled data — no full retrain needed.',
+      escalate: 'A thresholded decision (approve / block) is now mis-tuned.',
+    },
+    'serving outage': {
+      symptom: 'Latency spike, error rate up, or the model falls back to a default for many requests.',
+      cause: 'Bad deploy, dependency down, resource exhaustion.',
+      owner: 'On-call / platform.',
+      action: 'Roll back immediately to the last known-good version; investigate after service is restored.',
+      escalate: 'Always — this is a live incident.',
+    },
+  };
+  const card = block(mount);
+  const st = ctl(mount, [{ key: 'sig', type: 'radio', label: 'incident signal', value: 'input drift', options: Object.keys(CASES) }], s => draw(s.sig));
+  function draw(sig){
+    const c = CASES[sig];
+    const row = (k, v) => `<tr><td style="color:var(--ink-3);padding:4px 10px 4px 0;vertical-align:top;white-space:nowrap">${k}</td><td style="padding:4px 0">${v}</td></tr>`;
+    card.innerHTML = `<table style="border-collapse:collapse;line-height:1.5">
+      ${row('symptom', c.symptom)}${row('likely cause', c.cause)}${row('owner', c.owner)}
+      ${row('safe action', `<b>${c.action}</b>`)}${row('escalate when', c.escalate)}</table>
+      <p style="color:var(--ink-3);margin:10px 0 0">Four signals, four different responses — monitoring is a decision system with an owner and a rollback path, not a wall of charts.</p>`;
+  }
+  draw('input drift');
 };
 
 /* ════════════════════════════════════════════════════════════════════
