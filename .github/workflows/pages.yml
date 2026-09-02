@@ -1,11 +1,14 @@
-name: Build & deploy site
+name: Deploy site
+
+# docs/ is committed as the build artifact (like a checked-in dist/): the author
+# runs `npm run diagrams` + `node build.mjs --all` locally and commits the result.
+# CI just packages docs/ and deploys it — no Node build, no version sensitivity.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'notes/**'
-      - 'web/**'
+      - 'docs/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -19,53 +22,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install build deps
-        working-directory: web
-        run: npm ci --omit=dev          # skip playwright/mermaid/jsdom — diagrams are pre-rendered & committed
-
-      - name: Build every module
-        working-directory: web
-        run: node build.mjs --all
-
-      - name: Fail on un-rendered diagrams
-        run: |
-          if grep -lq 'class="diagram diagram-raw"' docs/*.html; then
-            echo "::error::a ```mermaid block is not pre-rendered — run 'npm run diagrams' in web/ and commit web/.diagrams/"
-            grep -l 'class="diagram diagram-raw"' docs/*.html
-            exit 1
-          fi
-
-      - name: Warn if committed docs/ were stale
-        run: |
-          if ! git diff --quiet -- docs/; then
-            echo "::warning::docs/ in the repo is out of date with notes/. Run the web build and commit docs/ to keep the repo in sync (the deploy below uses the fresh build regardless)."
-            git diff --stat -- docs/ || true
-          fi
-
-      - name: Keep Jekyll off
-        run: touch docs/.nojekyll
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Sanity-check the committed site
+        run: |
+          test -f docs/index.html || { echo "::error::docs/index.html missing"; exit 1; }
+          for m in supervised-learning deep-neural-networks dimensionality-reduction \
+                   unsupervised-learning genai-llm sequential-learning \
+                   causal-inference reinforcement-learning agentic-ai; do
+            test -f "docs/$m.html" || { echo "::error::docs/$m.html missing"; exit 1; }
+          done
+          if grep -Fl 'class="diagram diagram-raw"' docs/*.html; then
+            echo "::error::a mermaid diagram was committed un-rendered — run 'npm run diagrams' then 'node build.mjs --all' in web/ and re-commit docs/"
+            exit 1
+          fi
+          touch docs/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
       - id: deployment
         uses: actions/deploy-pages@v4
