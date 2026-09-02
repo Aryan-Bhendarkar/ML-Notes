@@ -15,3 +15,6 @@ Thumbs.db
 
 # claude code local settings
 .claude/
+
+# dev scratch
+scratch_*

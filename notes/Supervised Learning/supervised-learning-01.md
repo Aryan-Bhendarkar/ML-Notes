@@ -1623,76 +1623,23 @@ Verbatim [raw `slide_061`, 32:25]:
 
 ## Putting it together
 
-```
-                    ┌──────────────────────────────────┐
-                    │  1. PROBLEM FORMULATION          │
-                    │     What is X? What is Y?        │
-                    │     Which hypothesis space H?    │
-                    └───────────────┬──────────────────┘
-                                    │  ← the highest-leverage decision,
-                                    │    and the one people skip
-                    ┌───────────────▼──────────────────┐
-                    │  2. DATA DISCIPLINE              │
-                    │     split FIRST, preprocess AFTER│
-                    │     train / val / test           │
-                    │     ▲ every fitted transform     │
-                    │       goes inside the Pipeline   │
-                    └───────────────┬──────────────────┘
-                                    │  ← without this, everything
-                                    │    downstream is a lie
-                    ┌───────────────▼──────────────────┐
-                    │  3. FIT, THEN DIAGNOSE           │
-                    │                                  │
-                    │   train err ─┬─ high, val high   │
-                    │              │   → HIGH BIAS     │
-                    │              │   → more capacity │
-                    │              │                   │
-                    │              └─ low, val high    │
-                    │                  → HIGH VARIANCE │
-                    │                  → more data /   │
-                    │                    regularise    │
-                    │                                  │
-                    │   Total = Bias² + Var + σ²       │
-                    │   learning curve tells you which │
-                    └───────────────┬──────────────────┘
-                                    │
-              ┌─────────────────────┴─────────────────────┐
-              │                                           │
-   ┌──────────▼──────────┐                   ┌────────────▼───────────┐
-   │  CONTINUOUS Y       │                   │  BINARY Y              │
-   │  Linear Regression  │                   │  Logistic Regression   │
-   │                     │                   │                        │
-   │  ŷ = wᵀx + b        │                   │  P(y=1) = σ(wᵀx + b)   │
-   │  minimise Σ(y-ŷ)²   │                   │  maximise likelihood   │
-   │  w = (XᵀX)⁻¹Xᵀy     │                   │   ≡ minimise BCE       │
-   │  ▲ closed form      │                   │  ▲ NO closed form      │
-   │                     │                   │    → iterative         │
-   │  4 assumptions:     │                   │                        │
-   │  linearity          │                   │  boundary: wᵀx + b = 0 │
-   │  independence       │                   │  ▲ still LINEAR        │
-   │  homoscedasticity   │                   │                        │
-   │  no multicollinearity                   │  threshold is a FREE   │
-   │        │            │                   │  post-hoc business dial│
-   └────────┼────────────┘                   └────────────────────────┘
-            │
-            │ multicollinearity breaks (XᵀX)⁻¹
-            ▼
-   ┌─────────────────────────────────────────┐
-   │  REGULARISATION — λ is the complexity   │
-   │  dial from the U-curve, with a knob     │
-   │                                         │
-   │  Ridge  L2  λΣw²   → shrinks, never 0   │
-   │              ▲ penalty gradient → 0     │
-   │  Lasso  L1  λΣ|w|  → EXACT zeros        │
-   │              ▲ penalty gradient → λ     │
-   │  Elastic    both   → sparse AND stable  │
-   └─────────────────────────────────────────┘
-                     │
-                     ▼
-        ═══════════════════════════════
-         Part 2: losses, optimisers,
-         metrics, and three more models
-        ═══════════════════════════════
+```mermaid
+flowchart TD
+    P1(["<b>1 · Problem formulation</b>"])
+    P2(["<b>2 · Data discipline</b>"])
+    P3(["<b>3 · Fit, then diagnose</b>"])
+    P1 -->|"define X, Y, hypothesis space H"| P2
+    P2 -->|"split first · train / val / test<br/>fitted transforms live in the Pipeline"| P3
+    P3 -->|"both high → bias (add capacity)<br/>val ≫ train → variance (regularise / more data)"| SPLIT{{"which Y?"}}
+    SPLIT -->|continuous| CONT["<b>Linear Regression</b><br/>ŷ = wᵀx + b · closed form · 4 assumptions"]
+    SPLIT -->|binary| BIN["<b>Logistic Regression</b><br/>σ(wᵀx + b) · iterative · free threshold"]
+    CONT -->|"multicollinearity<br/>breaks (XᵀX)⁻¹"| REG["<b>Regularisation</b> — λ is the U-curve dial<br/>Ridge L2 shrinks · Lasso L1 zeros · Elastic both"]
+    BIN --> REG
+    REG --> NEXT(["<b>Part 2 →</b> losses · optimisers · metrics · 3 models"])
+    classDef step fill:#2C2820,stroke:#8CDCA6,stroke-width:1.6px,color:#EDE6D7
+    classDef term fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class P1,P2,P3 step
+    class NEXT term
 ```
 
 ### The four threads

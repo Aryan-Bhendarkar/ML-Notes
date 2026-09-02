@@ -5,6 +5,11 @@ import MarkdownIt from 'markdown-it';
 import deflist from 'markdown-it-deflist';
 import Temml from 'temml';
 import { parse as parseHTML } from 'node-html-parser';
+import crypto from 'node:crypto';
+
+// ```mermaid blocks are pre-rendered to SVG by diagrams.mjs and looked up here by
+// content hash (must match diagrams.mjs).  Missing ⇒ graceful <pre> fallback.
+const diagHash = src => crypto.createHash('sha1').update(src.trim()).digest('hex').slice(0, 16);
 
 // ── fixed callout map — identical meaning in every module (NOTES_PIPELINE.md) ──
 export const CALLOUTS = {
@@ -48,6 +53,20 @@ function renderMath(m) {
       ? `<div class="mblk mfail">${esc(m.tex)}</div>`
       : `<code class="mfail">${esc(m.tex)}</code>`;
   }
+}
+
+// ── mermaid diagrams: pulled out before markdown, restored as inline SVG ──
+function extractMermaid(src, store) {
+  return src.replace(/```mermaid\n([\s\S]*?)```/g, (_, body) => {
+    const i = store.length;
+    store.push(body.trim());
+    return `\n\nMERMAIDPLACEHOLDER${i}E\n\n`;
+  });
+}
+function renderMermaid(code, diagrams) {
+  const svg = diagrams && diagrams[diagHash(code)];
+  if (svg) return `<figure class="diagram">${svg}</figure>`;
+  return `<figure class="diagram diagram-raw"><pre>${esc(code)}</pre></figure>`;
 }
 
 // ── interactive spec blocks: parsed here, realised by the client runtime ──
@@ -109,7 +128,7 @@ function linkifyXrefs(root, ctx) {
 // ── main ──
 export function renderLecture(mdSrc, ctx) {
   // ctx: { moduleSlug, moduleName, lectureNum, file }
-  const math = [], iv = [];
+  const math = [], iv = [], mer = [];
   let src = mdSrc.replace(/\r\n?/g, '\n');
   const fm = /^---\n([\s\S]*?)\n---\n/.exec(src);
   const front = {};
@@ -135,13 +154,15 @@ export function renderLecture(mdSrc, ctx) {
   const colon = /^(.*?—\s*Part\s*\d+)\s*:\s*(.+)$/.exec(front.title || '');
   if (colon) { front.h1 = front.h1 || colon[1].trim(); front.subtitle = front.subtitle || colon[2].trim(); }
 
+  src = extractMermaid(src, mer);
   src = extractInteractive(src, iv);
   src = extractMath(src, math);
 
   let html = md.render(src);
   // restore placeholders on the string (they came through as plain text)
   html = html
-    .replace(/<p>\s*(MATHPLACEHOLDER\d+E|IVPLACEHOLDER\d+E)\s*<\/p>/g, '$1')
+    .replace(/<p>\s*(MATHPLACEHOLDER\d+E|IVPLACEHOLDER\d+E|MERMAIDPLACEHOLDER\d+E)\s*<\/p>/g, '$1')
+    .replace(/MERMAIDPLACEHOLDER(\d+)E/g, (_, i) => renderMermaid(mer[+i], ctx.diagrams))
     .replace(/MATHPLACEHOLDER(\d+)E/g, (_, i) => renderMath(math[+i]))
     .replace(/IVPLACEHOLDER(\d+)E/g, (_, i) => renderInteractive(iv[+i], +i, ctx));
 

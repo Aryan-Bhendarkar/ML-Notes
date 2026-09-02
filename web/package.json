@@ -5,11 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "diagrams": "node diagrams.mjs",
     "build": "node build.mjs",
     "build:home": "node build.mjs --home",
     "build:all": "node build.mjs --all",
     "preview": "node preview.mjs",
-    "dev": "node build.mjs --all && node preview.mjs",
+    "dev": "node diagrams.mjs && node build.mjs --all && node preview.mjs",
     "analyze": "node _analyze.mjs"
   },
   "author": "Aryan Bhendarkar",
@@ -24,6 +25,8 @@
     "temml": "^0.13.5"
   },
   "devDependencies": {
-    "jsdom": "^28.1.0"
+    "jsdom": "^28.1.0",
+    "mermaid": "^11.17.2",
+    "playwright": "^1.62.1"
   }
 }

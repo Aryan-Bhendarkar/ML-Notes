@@ -40,7 +40,8 @@ The build prints a fidelity report — source vs. rendered counts for `##` secti
 | Math | `temml` → MathML, rendered at build time, inlined | LaTeX→MathML by a KaTeX author, **no font files**, MathML Core is native in current browsers, zero runtime cost |
 | Callouts | fixed token map 📚💡⚠️🧪🎯🔬🩹 → `callout-{bg,key,warn,lab,int,res,recon}` | one colour = one meaning in every module (the memory aid) |
 | Symbol tables | `\| Symbol \| …` tables get `.symtab` and bind to the equation directly above | a scroll must never separate a formula from what its symbols mean |
-| ASCII diagrams | detected by box-drawing chars, styled `figure.ascii` | *(SVG redraws are a later pass — see below)* |
+| Diagrams | ```` ```mermaid ```` blocks → static SVG, pre-rendered by `diagrams.mjs` (Playwright + Mermaid), cached in `web/.diagrams/`, inlined at build time | real layout engine, themed to study-lamp, **zero runtime cost**; missing cache ⇒ graceful `<pre>` fallback |
+| ASCII diagrams | leftover box-drawing blocks, styled `figure.ascii` | being converted to ```` ```mermaid ```` module by module |
 | Cross-refs | `§14`, `Part 2 §6` → in-artifact links (works even mid-sentence beside math/code); `Supervised Learning Part 1 §8` → link to that module's file; unresolvable → styled dead link | never a broken anchor |
 | `interactive` blocks | real components where feasible (`web/interactive.js`), keyed by `title:` | the rest render the `fallback` as complete standalone prose — never an inert stub |
 
@@ -108,10 +109,32 @@ Fixes from that pass: `§` refs now link even inside sentences that also contain
 `> ⚠️` callouts convert; `interactive` fallbacks render their `$math$`;
 `## Part A — …` sub-dividers render as dividers and are excluded from progress %.
 
-`web/interactive.js` implements **28** of the 118 interactive blocks as real
-figures (sliders / live plots / bar charts, all inline SVG, no deps). The other
-90 render their `fallback` as complete standalone teaching prose. To add more,
-add an entry to `INTERACTIVE` keyed by the block's exact `title:`.
+`web/interactive.js` implements **40** of the 118 interactive blocks as real
+figures (sliders / live plots / bar charts, all inline SVG, no deps) — Supervised
+Learning is fully covered. The rest render their `fallback` as complete standalone
+teaching prose. To add more, add an entry to `INTERACTIVE` keyed by the block's
+exact `title:`.
+
+## Diagrams
+
+```` ```mermaid ```` blocks in the notes are pre-rendered to themed static SVG and
+inlined at build time — **no runtime library, no external requests**.
+
+```
+npm run diagrams        # render every ```mermaid block → web/.diagrams/<hash>.svg
+npm run diagrams -- --force   # re-render all (after a theme change)
+```
+
+- `diagrams.mjs` uses Playwright + Mermaid; run it whenever a diagram changes and
+  **commit `web/.diagrams/`** (it is the cache the build and CI read — neither
+  needs a browser).
+- `render.mjs` looks each block up by content hash; a miss falls back to a styled
+  `<pre>` and `build.mjs --all` / CI flags it.
+- Theme + layout config live in `THEME` at the top of `diagrams.mjs` — keep the
+  palette in sync with `app.template.html`.
+- `node _shot.mjs diagram latest` screenshots the newest cached SVG in a themed
+  frame for a quick visual check; `node _shot.mjs page <slug> figure.diagram:N`
+  grabs it from the built page.
 
 ## Local preview & real-browser QA
 
@@ -136,7 +159,7 @@ To reinstall on another machine: `claude mcp add --scope user playwright -- npx 
 
 ## Still to do (later passes)
 
-- More interactive figures (28 / 118 done — the highest-value sliders per module)
-- SVG redraws of ASCII diagrams (kept as styled `<pre>` for now)
+- More interactive figures (40 / 118 done — Supervised Learning complete)
+- Convert the remaining ASCII diagrams to ```` ```mermaid ```` (Supervised in progress)
 - Syntax highlighting for `python` blocks (styled, not tokenised)
-- Real-browser visual QA pass — tooling now in place (Playwright MCP + `npm run preview`); pass itself still to run
+- Real-browser visual QA sweep across every module

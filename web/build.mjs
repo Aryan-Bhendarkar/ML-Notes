@@ -20,6 +20,17 @@ const SITE = 'https://aryan-bhendarkar.github.io/ML-Notes';
 const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const readMd = p => fs.readFileSync(p, 'utf8').replace(/\r\n?/g, '\n');
 
+// pre-rendered mermaid SVGs (built by `npm run diagrams`), keyed by content hash
+function loadDiagrams() {
+  const dir = path.join(HERE, '.diagrams');
+  const map = {};
+  if (fs.existsSync(dir))
+    for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.svg')))
+      map[f.replace('.svg', '')] = fs.readFileSync(path.join(dir, f), 'utf8');
+  return map;
+}
+const DIAGRAMS = loadDiagrams();
+
 // ── module discovery ────────────────────────────────────────────────
 function moduleFiles(dir) {
   const files = fs.readdirSync(dir)
@@ -92,6 +103,7 @@ function buildModule(mod, course) {
       moduleSlug: mod.slug, moduleName: mod.name,
       lectureNum: meta.num, file: meta.file,
       modules: course.map(m => ({ name: m.name, slug: m.slug })),
+      diagrams: DIAGRAMS,
     });
     for (const k in counts) counts[k] += out.counts[k];
     lectures.push({
@@ -230,14 +242,19 @@ if (arg === '--home') {
   process.exit(0);
 }
 if (arg === '--all') {
+  let unrendered = 0;
   for (const m of course) {
     const r = buildModule(m, course);
     const kb = (fs.statSync(r.outPath).size / 1024).toFixed(0);
     const bad = ['h2', 'details', 'rows', 'warn', 'interactive'].filter(k => r.counts[k] !== r.srcCounts[k]);
-    console.log(`  ${bad.length ? '!!' : 'ok'} docs/${m.slug}.html  (${kb} KB)${bad.length ? `  MISMATCH: ${bad.join(', ')}` : ''}`);
+    const raw = (fs.readFileSync(r.outPath, 'utf8').match(/class="diagram diagram-raw"/g) || []).length;
+    unrendered += raw;
+    console.log(`  ${bad.length || raw ? '!!' : 'ok'} docs/${m.slug}.html  (${kb} KB)${bad.length ? `  MISMATCH: ${bad.join(', ')}` : ''}${raw ? `  ${raw} un-rendered mermaid` : ''}`);
   }
   buildHome(course);
-  console.log(`\n  built ${course.length} modules + docs/index.html\n`);
+  console.log(`\n  built ${course.length} modules + docs/index.html`);
+  if (unrendered) console.log(`  !! ${unrendered} mermaid block(s) fell back to <pre> — run "npm run diagrams"`);
+  console.log('');
   process.exit(0);
 }
 if (!arg) {

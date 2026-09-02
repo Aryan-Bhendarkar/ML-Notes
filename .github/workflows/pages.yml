@@ -32,27 +32,19 @@ jobs:
 
       - name: Install build deps
         working-directory: web
-        run: npm ci
+        run: npm ci --omit=dev          # skip playwright/mermaid/jsdom — diagrams are pre-rendered & committed
 
       - name: Build every module
         working-directory: web
+        run: node build.mjs --all
+
+      - name: Fail on un-rendered diagrams
         run: |
-          set -e
-          modules=(
-            "Supervised Learning"
-            "Deep Neural Networks"
-            "Dimensionality Reduction"
-            "Unsupervised Learning"
-            "GenAI & LLM"
-            "Sequential Learning"
-            "Causal Inference"
-            "Reinforcement Learning"
-            "Agentic AI"
-          )
-          for m in "${modules[@]}"; do
-            node build.mjs "$m"
-          done
-          node build.mjs --home
+          if grep -lq 'class="diagram diagram-raw"' docs/*.html; then
+            echo "::error::a ```mermaid block is not pre-rendered — run 'npm run diagrams' in web/ and commit web/.diagrams/"
+            grep -l 'class="diagram diagram-raw"' docs/*.html
+            exit 1
+          fi
 
       - name: Warn if committed docs/ were stale
         run: |
