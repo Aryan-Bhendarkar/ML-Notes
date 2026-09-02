@@ -64,40 +64,16 @@ This lecture establishes the mathematical language of reinforcement learning —
 (agents, environments, policies, rewards), the formal framework (MDPs), and the core equations
 (Bellman expectation and optimality) that every subsequent RL algorithm builds on.
 
-```
-Three ML paradigms (§1)
-   Supervised: input-output pairs, correct labels
-   Unsupervised: no labels, discover structure
-   RL: no supervisor, delayed rewards, sequential decisions
-        │
-        ▼
-The RL framework (§2–§4)
-   Agent-environment loop: observe state → take action → get reward + next state
-   Policy π(a|s): rule for choosing actions (deterministic or stochastic)
-   Episodic vs. continuing tasks
-        │
-        ▼
-Markov Decision Process (§5–§7)
-   5-tuple (S, A, P, R, γ)
-   Markov property: future depends only on present
-   Discount factor γ: controls planning horizon
-   Return G_t = Σ γ^k R_{t+k+1}
-        │
-        ▼
-Value functions (§8)
-   V^π(s): how good is state s under policy π?
-   Q^π(s,a): how good is taking action a in state s under π?
-   Relationship: V^π(s) = Σ_a π(a|s) Q^π(s,a)
-        │
-        ▼
-Bellman equations (§9–§12)
-   Expectation: V^π(s) = Σ_a π(a|s) [R + γ Σ_{s'} P(s'|s,a) V^π(s')]
-   Optimality: V*(s) = max_a [R + γ Σ_{s'} P(s'|s,a) V*(s')]
-   Policy iteration: evaluate → improve → evaluate → ...
-   Value iteration: combine evaluate + improve in one step
-        │
-        ▼
-Foundation for all RL algorithms: Q-learning, DQN, actor-critic, PPO, ...
+```mermaid
+flowchart TD
+    P["<b>Three ML paradigms</b> · §1<br/><small>supervised: input–output pairs · unsupervised: no labels, discover structure · RL: no supervisor, delayed rewards, sequential decisions</small>"]
+    P --> FW["<b>The RL framework</b> · §2–4<br/><small>agent–environment loop: observe state → take action → get reward + next state · policy π(a|s) · episodic vs continuing</small>"]
+    FW --> MDP["<b>Markov Decision Process</b> · §5–7<br/><small>5-tuple (S, A, P, R, γ) · Markov property · discount γ controls the horizon · return Gₜ = Σ γᵏ Rₜ₊ₖ₊₁</small>"]
+    MDP --> VF["<b>Value functions</b> · §8<br/><small>Vπ(s): how good is state s? · Qπ(s,a): how good is action a in s? · Vπ(s) = Σ_a π(a|s) Qπ(s,a)</small>"]
+    VF --> BE["<b>Bellman equations</b> · §9–12<br/><small>expectation: Vπ(s) = Σ_a π(a|s)[R + γ Σ P(s'|s,a) Vπ(s')] · optimality: V*(s) = max_a[…] · policy iteration vs value iteration</small>"]
+    BE --> F(["<b>foundation for all RL</b> — Q-learning, DQN, actor–critic, PPO, …"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class MDP,BE,F k
 ```
 
 ---
@@ -136,16 +112,10 @@ scalar reward signal that the agent tries to maximize over time. The reward func
 
 ### 2.1 The agent-environment loop
 
-```
-    ┌────────────────────────────────────────────┐
-    │                                            │
-    │  ┌─────────┐  action a_t   ┌────────────┐  │
-    │  │         │──────────────▶│            │  │
-    │  │  Agent  │               │ Environment│  │
-    │  │         │◀──────────────│            │  │
-    │  └─────────┘  state s_{t+1}, reward r_{t+1} └─┘
-    │                                            │
-    └────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A["<b>Agent</b>"] -->|"action aₜ"| E["<b>Environment</b>"]
+    E -->|"state sₜ₊₁, reward rₜ₊₁"| A
 ```
 
 At each time step $t$:
@@ -453,15 +423,12 @@ $$V^\pi(s) = \sum_a \pi(a|s) \left[ R(s,a) + \gamma \sum_{s'} P(s'|s,a) \cdot V^
    weighted by transition probabilities $P(s'|s,a)$, each valued at $V^\pi(s')$.
 
 **The "backup" diagram:**
-```
-          s
-         /|\
-        / | \
-      a₁  a₂  a₃    ← weighted by π(a|s)
-      |   |   |
-      s'₁ s'₂ s'₃  ← weighted by P(s'|s,a)
-      |   |   |
-     V(s'₁) V(s'₂) V(s'₃)
+```mermaid
+flowchart TD
+    S["s"] -->|"π(a|s)"| A1["a₁"] & A2["a₂"] & A3["a₃"]
+    A1 -->|"P(s'|s,a)"| V1["V(s'₁)"]
+    A2 --> V2["V(s'₂)"]
+    A3 --> V3["V(s'₃)"]
 ```
 
 The value at $s$ "backs up" from the values of the states it can reach.
@@ -689,34 +656,15 @@ before the *values* do.
 
 ## 14. Putting it together
 
-```
-THE RL FOUNDATION STACK
-════════════════════════
-
-   ┌─────────────────────────────────────────────┐
-   │  Applications: games, LLMs, robotics, finance │
-   └──────────────────┬──────────────────────────┘
-                      │ all rest on
-   ┌──────────────────▼──────────────────────────┐
-   │  RL Algorithms: Q-Learning, DQN, Actor-Critic │
-   │  (covered in Parts 2–3 of this module)        │
-   └──────────────────┬──────────────────────────┘
-                      │ all solve
-   ┌──────────────────▼──────────────────────────┐
-   │  Bellman Equations                            │
-   │  Expectation: V^π(s) = Σ π(a|s)[R + γV(s')] │
-   │  Optimality:  V*(s) = max_a [R + γV*(s')]    │
-   └──────────────────┬──────────────────────────┘
-                      │ which define
-   ┌──────────────────▼──────────────────────────┐
-   │  MDP = (S, A, P, R, γ)                       │
-   │  Markov property: future ⊥ past | present    │
-   └──────────────────┬──────────────────────────┘
-                      │ which captures
-   ┌──────────────────▼──────────────────────────┐
-   │  Agent-Environment Loop                       │
-   │  observe s → take a → get r, s' → repeat     │
-   └─────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    APP["<b>Applications</b> — games, LLMs, robotics, finance"]
+    APP -->|"all rest on"| ALG["<b>RL algorithms</b> — Q-learning, DQN, actor–critic<br/><small>(Parts 2–3 of this module)</small>"]
+    ALG -->|"all solve"| BE["<b>Bellman equations</b><br/><small>expectation Vπ(s) = Σ π(a|s)[R + γV(s')] · optimality V*(s) = max_a[R + γV*(s')]</small>"]
+    BE -->|"which define"| MDP["<b>MDP = (S, A, P, R, γ)</b><br/><small>Markov property: future ⊥ past | present</small>"]
+    MDP -->|"which captures"| LOOP["<b>Agent–environment loop</b><br/><small>observe s → take a → get r, s' → repeat</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class BE,MDP k
 ```
 
 Three threads run through this lecture:

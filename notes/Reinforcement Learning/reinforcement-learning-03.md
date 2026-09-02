@@ -80,35 +80,17 @@ allocation), you can't enumerate all options — this is the gap Part 3 fills.
 Parts 1–2 covered value-based methods (Q-learning, DQN) which work brilliantly for discrete
 actions. This lecture fills the gaps they leave:
 
-```
-Part 1 — Foundations (MDPs, Bellman equations)
-Part 2 — Value-Based Methods (Q-learning, DQN) — discrete actions only
-        │
-        │  Limitation: can't handle continuous actions
-        ▼
-Part 3 — Policy Gradient Methods (§2–§3)
-   Directly optimize the policy π(a|s; θ)
-   Handle continuous actions naturally
-        │
-        │  Problem: high variance
-        ▼
-   Baselines (§3.2) — reduce variance without bias
-        │
-        │  Problem: requires complete episodes
-        ▼
-   Actor-Critic (§4) — combine policy + value
-   A2C, A3C, GAE (§5–§7)
-        │
-        │  Beyond single agent
-        ▼
-   Multi-Agent RL (§8) — cooperative, competitive, self-play
-        │
-        │  Beyond task-specific rewards
-        ▼
-   RLHF (§9) — align LLMs with human preferences
-        │
-        ▼
-   Challenges & Tools (§10–§11)
+```mermaid
+flowchart TD
+    P12["<b>Parts 1–2</b> — MDPs, Bellman equations, value-based methods (Q-learning, DQN)<br/><small>discrete actions only — can't handle continuous actions</small>"]
+    P12 --> PG["<b>Part 3 · Policy gradient methods</b> · §2–3<br/><small>directly optimise π(a|s; θ) · handles continuous actions naturally · problem: high variance</small>"]
+    PG --> BL["<b>Baselines</b> · §3.2 — reduce variance without bias<br/><small>problem: requires complete episodes</small>"]
+    BL --> AC["<b>Actor–Critic</b> · §4 — combine policy + value · A2C, A3C, GAE (§5–7)"]
+    AC --> MA["<b>Multi-agent RL</b> · §8 — cooperative, competitive, self-play"]
+    MA --> RLHF["<b>RLHF</b> · §9 — align LLMs with human preferences"]
+    RLHF --> CH(["Challenges & tools · §10–11"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class PG,AC k
 ```
 
 Two threads:
@@ -289,9 +271,13 @@ Actor-critic solves REINFORCE's biggest flaw (waiting for full episodes) by comb
 
 ### 4.3 The loop
 
-```
-State s → Actor → Action a → Environment → Reward R, next state s'
-                                       → Critic → TD error/advantage → update Actor
+```mermaid
+flowchart LR
+    S["state s"] --> AC["<b>Actor</b>"] -->|"action a"| E["Environment"]
+    E -->|"reward R, next state s'"| CR["<b>Critic</b>"]
+    CR -->|"TD error / advantage"| AC
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class AC,CR k
 ```
 
 **Key advantages over REINFORCE:**
@@ -676,32 +662,13 @@ model.learn(total_timesteps=100_000)
 
 ## 13. Putting it together
 
-```
-THE COMPLETE RL JOURNEY (Parts 1–3)
-════════════════════════════════════
-
-   Part 1: Foundations
-   MDPs, Bellman equations, V(s), Q(s,a)
-   Policy iteration, value iteration
-        │
-        ▼
-   Part 2: Planning → Learning
-   Dynamic Programming (full model known)
-   → TD Learning (model-free)
-   → SARSA (on-policy) vs Q-learning (off-policy)
-   → DQN (neural nets + replay + target net)
-   → Superhuman Atari from pixels
-        │
-        │  Limitation: discrete actions only
-        ▼
-   Part 3: Beyond DQN
-   Policy Gradients (REINFORCE) → handles continuous actions
-   Baselines → reduce variance
-   Actor-Critic (A2C, A3C, GAE) → every-step updates, bias-variance dial
-   Multi-Agent RL → cooperative, competitive, self-play
-   RLHF → align LLMs with human preferences
-   Challenges → sample efficiency, reward design, stability, safety
-   Frameworks → Gymnasium, Stable-Baselines3, RLlib, CleanRL
+```mermaid
+flowchart TD
+    P1["<b>Part 1 · Foundations</b><br/><small>MDPs, Bellman equations, V(s), Q(s,a) · policy iteration, value iteration</small>"]
+    P1 --> P2["<b>Part 2 · Planning → learning</b><br/><small>dynamic programming (full model) → TD learning (model-free) → SARSA (on-policy) vs Q-learning (off-policy) → DQN (nets + replay + target net) → superhuman Atari from pixels</small>"]
+    P2 -->|"limitation: discrete actions only"| P3["<b>Part 3 · Beyond DQN</b><br/><small>policy gradients (REINFORCE) → continuous actions · baselines → less variance · actor–critic (A2C, A3C, GAE) → every-step updates, bias–variance dial · multi-agent RL · RLHF → align LLMs · challenges: sample efficiency, reward design, stability, safety · frameworks: Gymnasium, SB3, RLlib, CleanRL</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class P2,P3 k
 ```
 
 **Five key takeaways:**

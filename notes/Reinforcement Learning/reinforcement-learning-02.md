@@ -83,37 +83,16 @@ weights θ in the direction that reduces loss, controlled by a learning rate α.
 
 This lecture follows an **organized journey where each step removes an assumption:**
 
-```
-Dynamic Programming (§2–§3)
-   Assumption: COMPLETE model (P, R known)
-   Remove it → need model-free methods
-        │
-        ▼
-Exploration vs. Exploitation (§4)
-   Problem: what to try when you don't know the world
-   Strategies: ε-greedy, softmax, UCB
-        │
-        ▼
-Multi-Armed Bandits (§5)
-   Simplest RL: no states, no transitions, pure exploration
-   Bandits are the most widely deployed RL in industry
-        │
-        ▼
-Temporal Difference Learning (§6–§7)
-   The HEART of the course
-   Learn from experience, no model, update every step
-   TD(0), SARSA (on-policy), Q-learning (off-policy)
-        │
-        ▼
-On-policy vs. Off-policy (§8)
-   The distinction that unlocks data efficiency
-   Off-policy → experience replay → DQN
-        │
-        ▼
-Deep Q-Networks (§9–§11)
-   Replace Q-table with neural network
-   Two tricks: replay + target network
-   Result: superhuman Atari from raw pixels
+```mermaid
+flowchart TD
+    DP["<b>Dynamic programming</b> · §2–3<br/><small>assumes a complete model (P, R known) · remove it → model-free methods</small>"]
+    DP --> EX["<b>Exploration vs exploitation</b> · §4<br/><small>what to try when you don't know the world · ε-greedy, softmax, UCB</small>"]
+    EX --> MAB["<b>Multi-armed bandits</b> · §5<br/><small>simplest RL: no states, no transitions · the most widely deployed RL in industry</small>"]
+    MAB --> TD["<b>Temporal-difference learning</b> · §6–7 — the heart of the course<br/><small>learn from experience, no model, update every step · TD(0), SARSA (on-policy), Q-learning (off-policy)</small>"]
+    TD --> OP["<b>On-policy vs off-policy</b> · §8<br/><small>the distinction that unlocks data efficiency · off-policy → experience replay → DQN</small>"]
+    OP --> DQN["<b>Deep Q-Networks</b> · §9–11<br/><small>replace the Q-table with a network · two tricks: replay + target network · superhuman Atari from raw pixels</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TD,DQN k
 ```
 
 Two threads to hold the entire time:
@@ -412,8 +391,9 @@ future state. No delayed consequences, no long-horizon credit assignment.
 
 **The spectrum:**
 
-```
-MAB (no context) → Contextual Bandits (context, immediate reward) → Full RL (actions affect future)
+```mermaid
+flowchart LR
+    MAB["<b>MAB</b><br/><small>no context</small>"] --> CB["<b>Contextual bandits</b><br/><small>context, immediate reward</small>"] --> RL["<b>Full RL</b><br/><small>actions affect the future</small>"]
 ```
 
 **Amazon example:** user browsed electronics, it's evening, they're in Seattle → context goes
@@ -745,20 +725,17 @@ Output: Q(s, a) for each action
 
 ### 12.2 The complete algorithm
 
-```
-Initialize replay buffer D (capacity 1,000,000)
-Initialize online Q-network θ with random weights
-Initialize target network θ⁻ = θ
-
-Loop forever:
-  1. OBSERVE: stack last 4 frames as input (84×84×4)
-  2. CHOOSE: ε-greedy from Q(s; θ), ε decaying from 1.0 to 0.1
-  3. EXECUTE: take action in game, get reward R and next screen s'
-  4. STORE: transition (s, a, R, s') in buffer D
-  5. SAMPLE: random mini-batch of 32 from D
-  6. COMPUTE targets: y = R + γ max_a' Q(s', a'; θ⁻)  [frozen net]
-  7. LEARN: gradient descent to minimize (y - Q(s,a; θ))²
-  8. Every 10,000 steps: copy θ → θ⁻
+```mermaid
+flowchart TD
+    I["<b>initialise</b> — replay buffer D (1M) · online Q-network θ · target network θ⁻ = θ"]
+    I --> O["<b>1 · observe</b> — stack the last 4 frames (84×84×4)"]
+    O --> C["<b>2 · choose</b> — ε-greedy from Q(s; θ), ε: 1.0 → 0.1"]
+    C --> X["<b>3 · execute</b> — take the action, get reward R and next screen s'"]
+    X --> ST["<b>4 · store</b> — (s, a, R, s') in D"]
+    ST --> SMP["<b>5 · sample</b> — a random mini-batch of 32 from D"]
+    SMP --> TG["<b>6 · targets</b> — y = R + γ max_a' Q(s', a'; θ⁻)  [frozen net]"]
+    TG --> L["<b>7 · learn</b> — gradient step to minimise (y − Q(s,a; θ))²"]
+    L -->|"every 10,000 steps: copy θ → θ⁻"| O
 ```
 
 ### 12.3 Results — DeepMind 2015 (Nature)
@@ -799,41 +776,17 @@ and hyperparameters for all games. From raw pixels only — no game rules, no ha
 
 ## 14. Putting it together
 
-```
-THE JOURNEY FROM PLANNING TO LEARNING
-══════════════════════════════════════
-
-   Dynamic Programming          "I know the world perfectly"
-   (policy/value iteration)     → compute answer exactly
-           │
-           │  Remove: complete model
-           ▼
-   Exploration vs. Exploitation "What should I try?"
-   (ε-greedy, softmax, UCB)    → balance knowledge vs. discovery
-           │
-           │  Remove: states, transitions
-           ▼
-   Multi-Armed Bandits          "Simplest RL problem"
-   (MAB, contextual bandits)    → pure exploration, most deployed in industry
-           │
-           │  Add: states, sequential decisions
-           ▼
-   TD Learning                  "Learn from every step"
-   (TD(0), SARSA, Q-learning)   → no model, no waiting, bootstrap
-           │
-           │  Key distinction: on-policy vs. off-policy
-           ▼
-   Experience Replay            "Reuse old data"
-   (only possible off-policy)   → data efficiency
-           │
-           │  Replace table with neural network
-           ▼
-   DQN                          "Superhuman Atari from pixels"
-   (replay + target network)    → one algorithm, 49 games, raw pixels in
-           │
-           │  DQN limitation: discrete actions only
-           ▼
-   Part 3: Policy Gradients     "Continuous actions, RLHF, ..."
+```mermaid
+flowchart TD
+    DP["<b>Dynamic programming</b> (policy / value iteration)<br/><small>'I know the world perfectly' → compute the answer exactly</small>"]
+    DP -->|"remove: the complete model"| EX["<b>Exploration vs exploitation</b> (ε-greedy, softmax, UCB)<br/><small>'what should I try?' → balance knowledge vs discovery</small>"]
+    EX -->|"remove: states, transitions"| MAB["<b>Multi-armed bandits</b> (MAB, contextual)<br/><small>the simplest RL problem — pure exploration, most deployed in industry</small>"]
+    MAB -->|"add: states, sequential decisions"| TD["<b>TD learning</b> (TD(0), SARSA, Q-learning)<br/><small>'learn from every step' — no model, no waiting, bootstrap</small>"]
+    TD -->|"key distinction: on-policy vs off-policy"| ER["<b>Experience replay</b> (only possible off-policy)<br/><small>reuse old data → data efficiency</small>"]
+    ER -->|"replace the table with a network"| DQN["<b>DQN</b> (replay + target network)<br/><small>superhuman Atari from pixels — one algorithm, 49 games</small>"]
+    DQN -->|"DQN limitation: discrete actions only"| P3(["Part 3 · policy gradients — continuous actions, RLHF, …"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TD,DQN k
 ```
 
 **Five things to remember:**
