@@ -234,19 +234,28 @@ These are control flows applied to agents — if you write code, you already kno
 | **Conditional (router)** | If X → agent A; elif Y → agent B; else → agent C | Branching logic needed |
 | **Iterative (loop)** | While not done: generate → test → fix; repeat | Need convergence on quality |
 
-```
-Sequential:     A → B → C (total latency = sum of steps)
-
-Parallel:       ┌→ A →┐
-                ├→ B →├→ aggregate (latency = slowest step)
-                └→ C →┘
-
-Conditional:    input → router → if bug: fix agent
-                         → if clean: approval
-
-Loop:           generate → test → fail? → fix → test → pass? → done
-                    ↑                              │
-                    └──────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph SEQ["Sequential — latency = sum of steps"]
+      direction LR
+      sa["A"] --> sb["B"] --> sc["C"]
+    end
+    subgraph PAR["Parallel — latency = the slowest step"]
+      direction LR
+      pi[" "] --> pa["A"] & pb["B"] & pc["C"] --> pg["aggregate"]
+    end
+    subgraph CON["Conditional"]
+      direction LR
+      ci["input"] --> cr{"router"}
+      cr -->|"bug"| cf["fix agent"]
+      cr -->|"clean"| cap["approval"]
+    end
+    subgraph LOOP["Loop"]
+      direction LR
+      lg["generate"] --> lt["test"] --> lq{"fail?"}
+      lq -->|yes| lf["fix"] --> lt
+      lq -->|no| ld["done"]
+    end
 ```
 
 > *"The key: you need a clear stopping condition or you burn your money forever."*
@@ -257,20 +266,15 @@ Loop:           generate → test → fail? → fix → test → pass? → done
 
 A real system chains all four patterns into one flow:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  STEP 1: PARALLEL FAN-OUT                                   │
-│  Lint + Type-check + Security scan (all run at once)        │
-│                         ↓                                   │
-│  STEP 2: CONDITIONAL ROUTER                                 │
-│  Found bugs? → Fix agent │ Clean? → Approval                │
-│                         ↓                                   │
-│  STEP 3: REACT LOOP                                         │
-│  Think → Act (fix) → Observe (test) → loop until green     │
-│                         ↓                                   │
-│  STEP 4: SEQUENTIAL FINISH                                  │
-│  Human review → Merge → Deploy                              │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    S1["<b>1 · Parallel fan-out</b><br/><small>lint + type-check + security scan, all at once</small>"]
+    S1 --> S2{"<b>2 · Conditional router</b><br/>found bugs?"}
+    S2 -->|yes| S3["<b>3 · ReAct loop</b><br/><small>think → act (fix) → observe (test) → loop until green</small>"]
+    S2 -->|no| S4
+    S3 --> S4["<b>4 · Sequential finish</b><br/><small>human review → merge → deploy</small>"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class S2 ask
 ```
 
 Each step uses a different workflow pattern — combined into one pipeline.
@@ -281,19 +285,16 @@ Each step uses a different workflow pattern — combined into one pipeline.
 
 The most important pattern in agentic AI right now:
 
-```
-THOUGHT: "Test failed because of null pointer on line 42.
-          I should add a null check."
-    ↓
-ACTION:  Edit file — add null check on line 42
-    ↓
-OBSERVE: Run tests → still failing? → new error on line 67
-    ↓
-THOUGHT: "Line 67 issue is upstream — need to fix the parent function"
-    ↓
-ACTION:  Edit parent function
-    ↓
-OBSERVE: Tests pass → done
+```mermaid
+flowchart TD
+    T1["<b>Thought</b> — test failed on a null pointer at line 42; add a null check"]
+    T1 --> A1["<b>Action</b> — edit the file, add a null check on line 42"]
+    A1 --> O1["<b>Observe</b> — run tests → still failing, new error on line 67"]
+    O1 --> T2["<b>Thought</b> — line 67 is upstream; fix the parent function"]
+    T2 --> A2["<b>Action</b> — edit the parent function"]
+    A2 --> O2["<b>Observe</b> — tests pass → done"]
+    classDef good fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class O2 good
 ```
 
 **In one line:** Think → Act → Observe → Repeat
@@ -359,11 +360,11 @@ $600B+ is being invested in AI. Where's the first real ROI? **Code agents.**
 
 ### The core loop: Edit → Test → Fix
 
-```
-Read Code → Plan Edit → Write Code → Run Tests
-    ↑                                      │
-    └──── tests fail? ←───────────────────┘
-                                    tests pass → done
+```mermaid
+flowchart LR
+    RC["read code"] --> PE["plan edit"] --> WC["write code"] --> RT["run tests"]
+    RT -->|"tests fail"| PE
+    RT -->|"tests pass"| D["done"]
 ```
 
 | Without the loop | With the loop |
@@ -536,36 +537,24 @@ Web page contains (hidden with display:none):
 
 No single layer is perfect. An attacker has to breach ALL of them:
 
-```
-┌─────────────────────────────────────────┐
-│  Layer 1: INPUT FILTER                  │
-│  Injection classifier                   │
-│  Input sanitization                     │
-│  Rate limiting                          │
-│  Content filtering                      │
-│  ┌─────────────────────────────────┐    │
-│  │  Layer 2: SANDBOX               │    │
-│  │  Container isolation            │    │
-│  │  Network blocked                │    │
-│  │  FS read-only                   │    │
-│  │  Time + mem limits              │    │
-│  │  ┌─────────────────────────┐    │    │
-│  │  │  Layer 3: PERMISSIONS    │    │    │
-│  │  │  Tool allowlists         │    │    │
-│  │  │  Read vs. write split    │    │    │
-│  │  │  Instruction hierarchy   │    │    │
-│  │  │  Human gate on write     │    │    │
-│  │  │  ┌─────────────────┐    │    │    │
-│  │  │  │ Layer 4: OUTPUT  │    │    │    │
-│  │  │  │  + KILL          │    │    │    │
-│  │  │  │ Schema validation│    │    │    │
-│  │  │  │ Anomaly detection│    │    │    │
-│  │  │  │ Full audit trail │    │    │    │
-│  │  │  │ Instant kill switch│  │    │    │
-│  │  │  └─────────────────┘    │    │    │
-│  │  └─────────────────────────┘    │    │
-│  └─────────────────────────────────┘    │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph L1["Layer 1 · Input filter"]
+      direction TB
+      a["injection classifier · input sanitisation · rate limiting · content filtering"]
+      subgraph L2["Layer 2 · Sandbox"]
+        direction TB
+        b["container isolation · network blocked · FS read-only · time + memory limits"]
+        subgraph L3["Layer 3 · Permissions"]
+          direction TB
+          c["tool allowlists · read vs write split · instruction hierarchy · human gate on write"]
+          subgraph L4["Layer 4 · Output + kill"]
+            direction TB
+            d["schema validation · anomaly detection · full audit trail · instant kill switch"]
+          end
+        end
+      end
+    end
 ```
 
 > ⚠️ **Corrected against the source slide** [slide 66, "Layered security — no single fix, stack
@@ -649,28 +638,15 @@ different slice of agentic capability:
 
 The entire agent — retrieve, reason, tool-use, respond — in ~20 lines of LangGraph:
 
+```mermaid
+flowchart LR
+    RET["<b>retrieve</b><br/><small>vector store — semantic search over papers</small>"] --> REA["<b>reason</b><br/><small>LLM decides what's next</small>"]
+    REA -->|"needs a tool"| UT["<b>use_tool</b><br/><small>citation API</small>"]
+    UT -->|"loop back after the tool returns"| REA
+    REA -->|"has enough"| RES["<b>respond</b><br/><small>final answer</small>"]
 ```
-Task: "Find all RLHF papers, summarize them, tell me which cite Anthropic."
 
-Graph:
-  retrieve → reason → {use_tool → reason (loop)}
-                        ↓
-                     respond
-
-Four nodes:
-  1. retrieve  — calls vector store (semantic search over papers)
-  2. reason    — calls LLM, decides what's next
-  3. use_tool  — calls citation API
-  4. respond   — generates final answer
-
-Edges:
-  retrieve → reason (always)
-  reason → use_tool (if LLM needs a tool)
-  reason → respond (if LLM has enough)
-  use_tool → reason (loop back after tool returns)
-
-Result: "3 papers found, summaries ready"
-```
+*Task:* "Find all RLHF papers, summarise them, tell me which cite Anthropic." → *Result:* "3 papers found, summaries ready."
 
 **The real code** [slide 78]:
 
@@ -718,38 +694,14 @@ fallback: The four labeled boxes above already give the exact text the agent pro
 
 ## 18. Module Recap — The Full Agentic Stack
 
-```
-═══════════════════════════════════════════════════════════
-  THE COMPLETE AGENTIC AI STACK (Parts 1–3)
-═══════════════════════════════════════════════════════════
-
-  PART 1: FUNDAMENTALS
-  ├── Agent = LLM + Think → Act → Observe loop
-  ├── Autonomy ladder (chatbot → copilot → agent)
-  ├── Error compounding: 0.95^n → guardrails essential
-  └── Frameworks: ReAct, Reflection, Tree of Thought
-
-  PART 2: CAPABILITIES
-  ├── Tools to act (schema = prompt; scale: direct → router → retrieve)
-  ├── Memory to persist (working → short → long → episodic)
-  └── MCP to connect (host → client → server; N×M → N+M)
-
-  PART 3: MULTI-AGENT + PRODUCTION (this lecture)
-  ├── Multi-agent: specialization + parallelism + robustness
-  ├── Topologies: supervisor | peer-to-peer | hierarchical
-  ├── Communication: message passing | blackboard | handoff
-  ├── Workflows: sequential | parallel | conditional | loop
-  ├── ReAct in production: think → act → observe → repeat
-  ├── Code agents: edit → test → fix loop; ~55% SWE-bench
-  ├── Reliability: backoff, fallback, circuit breaker, idempotency
-  ├── Cost: token budgets, model routing, caching, early stopping
-  ├── Observability: trajectory logs, distributed tracing, anomaly detection
-  └── Safety: prompt injection, defense-in-depth (4 layers)
-
-  THE LOOP THAT CHANGES EVERYTHING:
-  Read → Plan → Edit → Test → observe → loop until green
-  This is why code agents work and essay agents plateau.
-═══════════════════════════════════════════════════════════
+```mermaid
+flowchart TD
+    P1["<b>Part 1 · Fundamentals</b><br/><small>agent = LLM + think → act → observe loop · autonomy ladder (chatbot → copilot → agent) · error compounding 0.95ⁿ → guardrails essential · frameworks: ReAct, Reflection, Tree of Thought</small>"]
+    P1 --> P2["<b>Part 2 · Capabilities</b><br/><small>tools to act (schema = prompt; scale: direct → router → retrieve) · memory to persist (working → short → long → episodic) · MCP to connect (host → client → server; N×M → N+M)</small>"]
+    P2 --> P3["<b>Part 3 · Multi-agent + production</b><br/><small>multi-agent: specialisation + parallelism + robustness · topologies: supervisor / peer-to-peer / hierarchical · communication: message passing / blackboard / handoff · workflows: sequential / parallel / conditional / loop · ReAct in production · code agents: edit → test → fix (~55% SWE-bench) · reliability: backoff, fallback, circuit breaker, idempotency · cost: token budgets, model routing, caching, early stopping · observability: trajectory logs, tracing, anomaly detection · safety: prompt injection, defense-in-depth (4 layers)</small>"]
+    P3 --> LOOP(["<b>The loop that changes everything</b> · read → plan → edit → test → observe → loop until green<br/><small>this is why code agents work and essay agents plateau</small>"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class P3,LOOP k
 ```
 
 > *"Engineers become architects and reviewers. The mechanical typing — that's what the agent

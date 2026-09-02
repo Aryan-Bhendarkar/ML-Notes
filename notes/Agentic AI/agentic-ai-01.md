@@ -77,10 +77,19 @@ lecture's "Act" step.
 LLMs are one-shot: you ask, they answer, they stop. **Agents close the loop** — the LLM
 decides what to do next based on what it just observed:
 
-```
-Standard LLM:     Input → LLM → Output (done)
-
-Agent:             Input → LLM → Think → Act (tool call) → Observe → LLM → Think → Act → ... → Done
+```mermaid
+flowchart LR
+    subgraph S["Standard LLM"]
+      direction LR
+      i1["input"] --> l1["LLM"] --> o1["output (done)"]
+    end
+    subgraph A["Agent"]
+      direction LR
+      i2["input"] --> l2["LLM"] --> T["think"] --> Act["act (tool call)"] --> Obs["observe"] --> l2
+      Obs --> D["done"]
+    end
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class A k
 ```
 
 This module covers:
@@ -297,10 +306,10 @@ and search-over-thoughts (§5.3) as the four architectures — this is the third
 > **cheap-model Executor** carries out each step with tools, and a **Replan** edge repairs the plan
 > when a step fails, looping back to the planner.
 
-```
-PLANNER (strong model, 1 call) → EXECUTOR (cheap model + tools) → REPLAN (on a failed step)
-        ▲                                                              │
-        └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    P["<b>Planner</b><br/><small>strong model, 1 call</small>"] --> E["<b>Executor</b><br/><small>cheap model + tools</small>"] --> R["<b>Replan</b><br/><small>on a failed step</small>"]
+    R -->|"revised plan"| E
 ```
 
 **Why split planner and executor at all?** A single expensive model call drafts the whole plan
@@ -336,16 +345,19 @@ Instead of one chain of thought, explore *multiple* reasoning branches, score ea
 backtrack from dead ends — this is the deck's own "Game of 24" example (reach 24 using the four
 numbers `4 4 6 8` exactly once each), redrawn here to match the slide's actual tree:
 
-```
-                              [Root: 4 4 6 8]
-                    ┌──────────────┼──────────────┐
-              6-4=2 (maybe)   4+8=12 (sure)   4×6=24 ✗ (impossible —
-                    │               │          uses only 2 of 4 tiles,
-              2×8=? ✗ (dead end,    │           strands the other two)
-               backtrack)           │
-                                6-4=2 (sure)
-                                     │
-                                  =24 ✓ (reached — correct)
+```mermaid
+flowchart TD
+    R["Root · 4 4 6 8"]
+    R --> B1["6 − 4 = 2 (maybe)"]
+    R --> B2["4 + 8 = 12 (sure)"]
+    R --> B3["4 × 6 = 24 ✗ — uses only 2 of 4 tiles"]
+    B1 --> B1a["2 × 8 = ? ✗ dead end, backtrack"]
+    B2 --> B2a["6 − 4 = 2 (sure)"]
+    B2a --> OK["= 24 ✓ correct"]
+    classDef bad fill:#3A2A22,stroke:#E89170,color:#EDE6D7
+    classDef good fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class B3,B1a bad
+    class OK good
 ```
 
 **Reading the tree:** the root generates three candidate first moves. `4×6=24` is scored
@@ -477,31 +489,18 @@ silently picked the right answer.
 > own vocabulary is grounded somewhere in this file, even though the deep-dive lives in the next
 > lecture.
 
-```
-AGENTIC AI FUNDAMENTALS
-════════════════════════
-
-   LLM (one-shot) → Agent (closed loop)
-        │
-        ├── Chatbot: human drives every turn
-        ├── Copilot: model suggests, human approves
-        └── Agent: model owns the loop
-             │
-             ├── ReAct: Think → Act → Observe
-             │   (prevents hallucination + random tool calls)
-             │
-             ├── Reflection: learn from mistakes via memory
-             │   (no retraining, just context engineering)
-             │
-             └── Tree of Thought: explore multiple branches
-                 (backtracking > best-of-N)
-                      │
-                      ▼
-              Guardrails are essential:
-              • Error compounding: 0.95^n → 0.6% at n=100
-              • Confidence thresholds for human gates
-              • Validate → Retry → Escalate
-              • Irreversible actions ALWAYS need human approval
+```mermaid
+flowchart TD
+    L["<b>LLM (one-shot)</b> → <b>Agent (closed loop)</b>"]
+    L --> CB["Chatbot — the human drives every turn"]
+    L --> CP["Copilot — the model suggests, the human approves"]
+    L --> AG["<b>Agent</b> — the model owns the loop"]
+    AG --> RA["<b>ReAct</b> — think → act → observe<br/><small>prevents hallucination + random tool calls</small>"]
+    AG --> RF["<b>Reflection</b> — learn from mistakes via memory<br/><small>no retraining, just context engineering</small>"]
+    AG --> TT["<b>Tree of Thought</b> — explore multiple branches<br/><small>backtracking &gt; best-of-N</small>"]
+    RA & RF & TT --> G["<b>Guardrails are essential</b><br/><small>error compounding 0.95ⁿ → 0.6% at n = 100 · confidence thresholds for human gates · validate → retry → escalate · irreversible actions always need human approval</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class AG,G k
 ```
 
 ---

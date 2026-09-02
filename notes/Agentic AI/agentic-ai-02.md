@@ -65,12 +65,19 @@ into a normal API call (or a local function call) and returns the response.
 
 Part 1 established that an agent closes the loop: Think → Act → Observe. But *what* makes it possible for an LLM to actually act? Three capabilities:
 
-```
-PASSIVE LLM                          ACTIVE AGENT
-─────────────                        ────────────
-Text in → Text out                   Text in → Tool calls → Results → Text out
-No memory across turns               Memory persists across turns
-No standard integration              MCP connects to any tool
+```mermaid
+flowchart TD
+    subgraph P["Passive LLM"]
+      direction TB
+      p1["text in → text out"] --- p2["no memory across turns"] --- p3["no standard integration"]
+    end
+    subgraph A["Active agent"]
+      direction TB
+      a1["text in → tool calls → results → text out"] --- a2["memory persists across turns"] --- a3["MCP connects to any tool"]
+    end
+    P --> A
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class A k
 ```
 
 | Capability | What it enables | Section |
@@ -127,18 +134,9 @@ Talking or generating text isn't enough. The agent needs tools.
 | **3. Execute** | Your code (harness) | The model *never* runs anything — the harness runs the function |
 | **4. Return** | Harness → model | Result goes back into context; model decides next move |
 
-```
-┌─────────────────────────────────────────────┐
-│  Model says: "call run_tests({file: 'x.py'})"│
-│         ↓                                   │
-│  Your harness executes run_tests()           │
-│         ↓                                   │
-│  Result: {passed: 0, failed: 2, errors: [...]}│
-│         ↓                                   │
-│  Result injected into model context          │
-│         ↓                                   │
-│  Model decides: "I need to edit line 42"     │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    M["model says: call run_tests({file: 'x.py'})"] --> H["your harness executes run_tests()"] --> R["result: {passed: 0, failed: 2, errors: […]}"] --> C["result injected into the model context"] --> D["model decides: 'I need to edit line 42'"]
 ```
 
 > *"The most important one that people miss a lot — the model never runs anything by itself.
@@ -146,8 +144,9 @@ Talking or generating text isn't enough. The agent needs tools.
 
 ### 2.2 The full loop
 
-```
-Ask → Execute → Observe → Decide → Ask → Execute → ...
+```mermaid
+flowchart LR
+    A["ask"] --> E["execute"] --> O["observe"] --> D["decide"] --> A
 ```
 
 The code agent asks to run tests. The harness runs them. Failures come back as context.
@@ -273,10 +272,9 @@ fallback: The ASCII bar chart above (direct ████████████
 
 When a tool fails, recover in order — cheapest and most automatic first:
 
-```
-1. Retry          → transient network blip?
-2. Different tool → same job, different implementation
-3. Ask user       → last resort
+```mermaid
+flowchart LR
+    R["<b>1 · retry</b><br/><small>transient network blip?</small>"] --> T["<b>2 · different tool</b><br/><small>same job, different implementation</small>"] --> U["<b>3 · ask the user</b><br/><small>last resort</small>"]
 ```
 
 | Failure type | Recovery |
@@ -506,17 +504,13 @@ Four common patterns, each trading off recall quality against cost/complexity:
 
 Before MCP, every model had to integrate every tool by hand:
 
+```mermaid
+flowchart LR
+    MA["Model A"] --> T1["Tool 1"] & T2["Tool 2"] & T3["Tool 3"]
+    MB["Model B"] --> U1["Tool 1 (re-integrated)"] & U2["Tool 2 (re-integrated)"] & U3["Tool 3 (re-integrated)"]
 ```
-Before MCP (N models × M tools = N×M connections):
 
-  Model A ──┬── Tool 1
-            ├── Tool 2
-            ├── Tool 3
-            
-  Model B ──┬── Tool 1  (re-integrated!)
-            ├── Tool 2  (re-integrated!)
-            └── Tool 3  (re-integrated!)
-```
+**Before MCP:** N models × M tools = **N×M** bespoke connections, each rebuilt per model.
 
 Every tool has a different API, auth flow, and parameter schema. You're rewriting the same
 integration over and over.
@@ -526,14 +520,17 @@ integration over and over.
 Think of when every device had its own charger — Motorola, BlackBerry, Samsung all different.
 Then USB-C: one standard connector. MCP is USB-C for AI tools.
 
+```mermaid
+flowchart LR
+    HA["Host A"] --> MCP
+    HB["Host B"] --> MCP
+    HC["Host C"] --> MCP{{"MCP protocol"}}
+    MCP --> S1["Server 1 · database"]
+    MCP --> S2["Server 2 · file system"]
+    MCP --> S3["Server 3 · browser"]
 ```
-After MCP (N hosts + M servers = N+M, with one protocol):
 
-  Host A ───┐
-  Host B ───┤── MCP Protocol ──┬── Server 1 (database)
-  Host C ───┘                  ├── Server 2 (file system)
-                               └── Server 3 (browser)
-```
+**After MCP:** N hosts + M servers = **N+M**, with one protocol — like USB-C for AI tools.
 
 > *"You collapse from N×M to N+M — from an entangled mesh to a clean hub."*
 
@@ -561,10 +558,10 @@ The key insight: **a team can build and ship an MCP server without touching any 
 The database team ships a database server — they don't care whether you're using Claude,
 GPT, or Gemini.
 
-```
-Host ──→ Client ──→ Server ──→ Actual tool/data
-                                    ↓
-Host ←── Client ←── Server ←── Result
+```mermaid
+flowchart LR
+    H["Host"] --> C["Client"] --> SV["Server"] --> TL["actual tool / data"]
+    TL -->|result| SV -->|result| C -->|result| H
 ```
 
 > *"Tool builders and model builders never have to coordinate. That's how the ecosystem
@@ -657,33 +654,15 @@ calls for whatever model it's using. **MCP feeds function calling.**
 
 ## 16. Module Recap
 
-```
-PASSIVE LLM → CAPABLE AGENT
-═════════════════════════════
-
-  TOOLS to act
-  ├── Model selects → Harness executes → Result returns
-  ├── Parallel calls when independent
-  ├── Schema design = prompt engineering
-  ├── Scale: direct → router → retrieval
-  ├── Failure: retry → different tool → ask user
-  └── Security: least privilege, allowlist, human-in-loop
-
-  MEMORY to persist
-  ├── Working (context) → Short-term → Long-term → Episodic
-  ├── Episodic + Reflection = learn from failure without retraining
-  ├── Four patterns: vector, sliding+summary, structured, hierarchical
-  └── Curation: write, read, update, forget
-
-  MCP to connect
-  ├── Host → Client → Server (one protocol)
-  ├── Tools (model) + Resources (app) + Prompts (user)
-  ├── stdio (local) or HTTP+SSE (remote)
-  └── N×M → N+M (USB-C for AI tools)
-
-  Tools to act, memory to persist, protocol to connect.
-  → One capable agent, working alone.
-  → Next: how does one agent become MANY?
+```mermaid
+flowchart TD
+    P["<b>Passive LLM → capable agent</b>"]
+    P --> T["<b>Tools to act</b><br/><small>model selects → harness executes → result returns · parallel calls when independent · schema design = prompt engineering · scale: direct → router → retrieval · failure: retry → different tool → ask user · security: least privilege, allowlist, human-in-loop</small>"]
+    P --> M["<b>Memory to persist</b><br/><small>working (context) → short-term → long-term → episodic · episodic + reflection = learn from failure without retraining · four patterns: vector, sliding + summary, structured, hierarchical · curation: write, read, update, forget</small>"]
+    P --> C["<b>MCP to connect</b><br/><small>host → client → server (one protocol) · tools (model) + resources (app) + prompts (user) · stdio (local) or HTTP + SSE (remote) · N×M → N+M</small>"]
+    T & M & C --> ONE(["one capable agent, working alone → next: how does one agent become many?"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class ONE k
 ```
 
 ---
