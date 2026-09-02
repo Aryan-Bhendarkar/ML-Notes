@@ -1738,20 +1738,6 @@ Pixels: 786,432 dims. Latent: 16,384 dims — **~48× smaller**, so the expensiv
 > alone would be 64×. But the channel count goes *up*, from 3 (RGB) to 4 — the latent needs a bit
 > more depth per position to hold the compressed information. Net effect: 48×, not 64×.
 
-```
-Diffuse in a compressed latent, not in pixels
-
-  ┌────────┐   ┌────────┐   ┌────────────────┐   ┌────────┐   ┌────────┐
-  │ image  │──►│ VAE enc│──►│   diffusion    │──►│ VAE dec│──►│ image  │
-  │ 512²×3 │   │   ↓    │   │   in latent    │   │   ↑    │   │  out   │
-  └────────┘   └────────┘   │    64²×4       │   └────────┘   └────────┘
-                            └────────────────┘
-                            ALL 50 steps here
-
-  pixels  ████████████████████████████████████  786,432 dims
-  latent  ▌                                      16,384 dims (~48× smaller)
-```
-
 ### The payoff
 
 > **This is Stable Diffusion. Same algorithm, a fraction of the compute: image generation on a
