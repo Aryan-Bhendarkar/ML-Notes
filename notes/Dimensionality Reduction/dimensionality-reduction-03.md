@@ -71,26 +71,22 @@ dividers, title, outline, and two closing slides).
 The four parts share almost no vocabulary with each other on the surface, but they are built from
 five ideas you already have from Parts 1–2, redeployed:
 
-```
-   THE BOTTLENECK             (Part 1's PCA: fewer dims than input)
-        │
-        ├─ trained by backprop instead of eigendecomposition, nonlinearity added ──▶ AUTOENCODER   §5–§11
-        │       └─ made robust: reconstruct clean from corrupted ─────────────────▶ DENOISING AE   §12–§14
-        │       └─ made interpretable: force most units OFF ──────────────────────▶ SPARSE AE      §16–§18
-        │
-        ├─ made GENERATIVE: encode a DISTRIBUTION, not a point ─────────────────▶ VAE              §19–§25
-        │       └─ made DISCRETE: snap to a learned codebook ───────────────────▶ VQ-VAE           §26–§28
-        │
-   THE LOW-RANK FACTORISATION  (Part 2's SVD: X ≈ rank-k pieces)
-        │
-        ├─ applied to a WEIGHT UPDATE instead of data ──────────────────────────▶ LoRA             §31–§33
-        │       └─ decoupled into magnitude × direction ─────────────────────────▶ DoRA            §35
-        │
-   THE VARIANCE-ORDERED PROJECTION (Part 2's PCA: PC1 matters most)
-        │
-        └─ TRAINED so any prefix is already a good subspace ────────────────────▶ MATRYOSHKA       §36–§39
-
-   AND ONE NEW IDEA: compress the SPACE the generative process runs in ─────────▶ LATENT DIFFUSION  §29–§30
+```mermaid
+flowchart TD
+    B["<b>The bottleneck</b><br/><small>Part 1's PCA — fewer dims than input</small>"]
+    B -->|"trained by backprop, nonlinearity added"| AE["<b>Autoencoder</b> · §5–11"]
+    AE -->|"reconstruct clean from corrupted"| DAE["<b>Denoising AE</b> · §12–14"]
+    AE -->|"force most units off"| SAE["<b>Sparse AE</b> · §16–18"]
+    B -->|"encode a distribution, not a point"| VAE["<b>VAE</b> · §19–25"]
+    VAE -->|"snap to a learned codebook"| VQ["<b>VQ-VAE</b> · §26–28"]
+    LR["<b>The low-rank factorisation</b><br/><small>Part 2's SVD — X ≈ rank-k pieces</small>"]
+    LR -->|"applied to a weight update, not data"| LORA["<b>LoRA</b> · §31–33"]
+    LORA -->|"decoupled into magnitude × direction"| DORA["<b>DoRA</b> · §35"]
+    VOP["<b>The variance-ordered projection</b><br/><small>Part 2's PCA — PC1 matters most</small>"]
+    VOP -->|"trained so any prefix is already a good subspace"| MRL["<b>Matryoshka</b> · §36–39"]
+    NEW["<b>One new idea</b> — compress the space the generative process runs in"] --> LD["<b>Latent diffusion</b> · §29–30"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class AE,VAE,LORA,MRL k
 ```
 
 If you are revising under time pressure: **§8–§10 (why a linear autoencoder *is* PCA), §22–§24
@@ -230,77 +226,23 @@ truncation — Part 2's central trick — becomes a runtime choice instead of a 
 
 ### The whole lecture in one diagram
 
+```mermaid
+flowchart TD
+    AE["<b>Part 1 · Autoencoders</b> · §5–28<br/><small>bottleneck z ≪ x → x̂ ≈ x · 🎯 linear AE + MSE = exactly the PCA subspace (Baldi–Hornik)</small>"]
+    AE --> DEN["<b>Denoising</b> — reconstruct clean from corrupted<br/><small>noise lives in the discarded dims · §12–14</small>"]
+    AE --> SP["<b>Sparse</b> — force most units off · KL(Bernoulli(ρ) ‖ ρ̂)<br/><small>§16–18 · modern: LLM interpretability, monosemantic features</small>"]
+    DEN --> NG["<b>none of these are generative</b> — the latent space has holes; a random z decodes to garbage · §19–20"]
+    SP --> NG
+    NG --> VAE["<b>VAE</b> · encode a distribution q(z|x) = N(μ, σ²), not a point · §22<br/><small>reparameterisation z = μ + σ⊙ε · ELBO = reconstruction − KL(q ‖ p) · reverse KL ⇒ mode-seeking ⇒ posterior collapse</small>"]
+    VAE --> VQ["<b>VQ-VAE</b> · snap z to the nearest codebook vector — discrete latents · §26–28<br/><small>straight-through gradient · an image → a 32×32 grid of tokens ⇒ a Transformer over pixels (DALL·E, Jukebox)</small>"]
+    VQ --> LD["<b>Part 2 · Latent diffusion</b> · §29–30<br/><small>pixel-space diffusion is infeasible (512²×3, O(n²) attention) → run it in the VAE's latent space (64× fewer positions) — Stable Diffusion, Sora, Veo</small>"]
+    LD --> LORA["<b>Part 3 · Low-rank in Transformers</b> · §31–35<br/><small>the update ΔW has low intrinsic rank · LoRA: ΔW ≈ B·A, r ≪ min(d,k), B starts at 0 ⇒ ~10,000× fewer params, zero added latency · DoRA: decouple W = m·(V/‖V‖)</small>"]
+    LORA --> MRL["<b>Part 4 · Matryoshka embeddings</b> · §36–39<br/><small>fixed-size embeddings don't scale · train so every prefix z_{1:8} ⊂ z_{1:16} ⊂ … is valid · 256-dim MRL = 96.6% of full 1024-dim · beats post-hoc PCA (task-aware, learned during training)</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class AE,VAE,LD k
 ```
-   PART 1 — AUTOENCODERS & VARIATIONAL AUTOENCODERS                              §5–§28
 
-     bottleneck: z ≪ x  →  x̂ ≈ x                                                  §5–§9
-     🎯 linear AE + MSE loss  =  EXACTLY the PCA subspace (Baldi–Hornik)          §9–§10
-              │
-     ┌────────┼─────────────────┐
-     ▼        ▼                 ▼
-   plain    DENOISING          SPARSE
-   AE       reconstruct        force most units OFF
-            CLEAN from         KL(Bernoulli(ρ) ‖ Bernoulli(ρ̂))       §16–§18
-            CORRUPTED
-            noise lives in                                    ┌── modern relevance:
-            discarded dims                                    │   LLM interpretability,
-            §12–§14                                            │   monosemantic features
-              │
-              ▼
-     but NONE of these are GENERATIVE — the latent space has
-     holes; sampling a random z decodes to garbage             §19–§20
-              │
-              ▼
-   VAE: encode a DISTRIBUTION q(z|x)=N(μ,σ²), not a point       §22
-        reparameterisation: z = μ + σ⊙ε                          (differentiable)
-        ELBO = RECONSTRUCTION − KL(q(z|x) ‖ p(z))                §23
-                                    ▲
-                          reverse KL (Part 2 §24) ⇒ mode-seeking
-                          ⇒ VAE's own failure mode: posterior collapse
-              │
-              ▼
-   VQ-VAE: SNAP z to nearest CODEBOOK vector — DISCRETE latents  §26–§28
-            straight-through gradient around the non-diff. argmin
-            an image becomes a 32×32 grid of TOKENS
-            ⇒ lets DALL·E, Jokebox run a TRANSFORMER over pixels
-
-   ═══════════════════════════════════════════════════════════════════════
-   PART 2 — LATENT DIFFUSION                                                    §29–§30
-
-     pixel-space diffusion: 512² RGB = 786,432 values/step, O(n²) attention
-     ⇒ INFEASIBLE
-     FIX: run diffusion in a VAE's LATENT SPACE instead (64×64 = 64× fewer
-     spatial positions) — Stable Diffusion, Sora, Veo all do this
-
-   ═══════════════════════════════════════════════════════════════════════
-   PART 3 — LOW-RANK METHODS IN TRANSFORMERS                                    §31–§35
-
-     full fine-tuning updates ALL of W ∈ R^(d×k) — billions of params
-     KEY INSIGHT: the UPDATE ΔW has low intrinsic rank
-     LoRA:  ΔW ≈ B·A,  B∈R^(d×r), A∈R^(r×k),  r ≪ min(d,k)          §31–§32
-            B starts at ZERO ⇒ training begins at the pretrained model, exactly
-            up to ~10,000× fewer trainable params, zero added inference latency
-     DoRA:  decouple W = m·(V/‖V‖) — magnitude trained separately,   §35
-            LoRA's B·A applied only to DIRECTION
-            ⇒ closer to how full fine-tuning actually varies weights
-
-   ═══════════════════════════════════════════════════════════════════════
-   PART 4 — EMBEDDING MODELS & MATRYOSHKA REPRESENTATIONS                       §36–§39
-
-     fixed-size embeddings DON'T SCALE: 100M docs @ 3072-dim = 1.2TB,
-     can't get a cheap 256-dim version, doc/query size MUST match
-     MRL: train so EVERY PREFIX z_{1:8} ⊂ z_{1:16} ⊂ ... ⊂ z_{1:2048}
-          is independently valid — nested dolls
-     L_Matryoshka = average( L(z_{1:8}) + L(z_{1:16}) + ... + L(z_{1:2048}) )
-     ⇒ 256-dim MRL embedding: 96.6% of full 1024-dim quality
-     ⇒ beats POST-HOC PCA — PCA runs AFTER the encoder and isn't data-aware;
-       MRL learns the nested structure DURING training
-
-   ═══════════════════════════════════════════════════════════════════════
-   THE THREAD: every part is either PART 2's PCA/SVD (§9's theorem, §32's
-   low-rank ΔW, §38's ordered prefixes) made TRAINABLE, or a bottleneck
-   (§7) made PROBABILISTIC (§22) or DISCRETE (§26).
-```
+**The thread.** Every part is either Part 2's PCA/SVD (§9's theorem, §32's low-rank ΔW, §38's ordered prefixes) made *trainable*, or a bottleneck (§7) made *probabilistic* (§22) or *discrete* (§26).
 
 ---
 
@@ -400,18 +342,12 @@ quiz makes you state this precisely.
 >
 > *"We minimize L to learn U,V. **Limitations:** Non generative, Latent dimension?"*
 
-```
-        x̃  ┌──────────┐
-     ──────▶│ D units  │   x̃ = reconstruction
-            └────┬─────┘
-                 │ U (decoder)
-            ┌────┴─────┐
-            │ K units  │   z = Vx  (the bottleneck)
-            └────┬─────┘
-                 │ V (encoder)
-            ┌────┴─────┐
-     ───────▶│ D units  │   x = input
-            └──────────┘
+```mermaid
+flowchart TD
+    X["<b>D units</b> — input x"] -->|"V (encoder)"| Z["<b>K units</b> — z = Vx  (the bottleneck)"]
+    Z -->|"U (decoder)"| XT["<b>D units</b> — x̃ = reconstruction"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class Z k
 ```
 
 | Symbol | Read it as | What it means | Shape |
@@ -1698,74 +1634,22 @@ data, a genuinely separate axis this closing table doesn't attempt to capture.
 
 ## Putting it together
 
-```
-   PART 2's THEOREM: a linear autoencoder + MSE = EXACTLY the PCA subspace (Baldi–Hornik)   §9–§10
-                                    │
-                    "nonlinearity is the superpower" — the ONE thing that lets
-                    an autoencoder do what PCA (Part 2 §14) provably cannot: fit
-                    a CURVED manifold, not just a flat subspace
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        ▼                           ▼                           ▼
-   DENOISING AE               SPARSE AE                    (plain AE has
-   reconstruct CLEAN          force units OFF via           TWO weaknesses:
-   from CORRUPTED             KL(Bernoulli(ρ)‖ρ̂)            memorises, and its
-   noise lives in the         §16–§18                       latent space has
-   discarded low-rank         → modern: LLM SAE             HOLES — nothing
-   directions (Part 2 §12)      interpretability            ever trained it
-   §12–§14                                                   to be smooth)
-                                                                   │
-                                                                   ▼
-                                          NEITHER FIX MAKES IT GENERATIVE    §19–§20
-                                                   │
-                                                   ▼
-   VAE: encode a DISTRIBUTION N(μ,σ²), not a point            §21–§22
-        reparam trick: z = μ + σ⊙ε  (Prereq 4, differentiable)
-        ELBO = RECON − KL(q(z|x)‖p(z))                        §23
-                          ▲
-              REVERSE KL (Part 2 §24: mode-seeking, zero-forcing)
-              ⇒ VAE's own failure mode is predicted, not just observed
-                                                   │
-                          ┌────────────────────────┴────────────────────────┐
-                          ▼                                                 ▼
-                 VQ-VAE: SNAP to codebook                          the smooth, hole-free
-                 discrete latents ⇒ an image                       latent space is EXACTLY
-                 becomes tokens a TRANSFORMER                      what Stable Diffusion's
-                 can model (DALL·E, Jukebox)                       VAE encoder needs
-                 §26–§28                                                    │
-                                                                             ▼
-                                        LATENT DIFFUSION: run the iterative denoising
-                                        INSIDE that latent space, not in pixel space
-                                        512²×3 = 786,432 values, O(n²) attention on
-                                        262,144 tokens ⇒ INFEASIBLE in pixels
-                                        64×64 latent ⇒ 64× fewer elements, 4,096×
-                                        cheaper attention                    §29–§30
-                                        (extends to video: spatiotemporal VAE + DiT)
-
-   ═══════════════════════════════════════════════════════════════════════════
-   PART 2's OTHER THEOREM: truncated SVD is the PROVABLY OPTIMAL low-rank
-   approximation of ANY matrix (Eckart–Young)                              §31–§32
-                                    │
-                    applied not to DATA but to a WEIGHT UPDATE ΔW
-                                    │
-                    LoRA:  ΔW ≈ B·A,  r ≪ min(d,k)
-                           B=0 at init ⇒ zero disruption, A random ⇒ breaks
-                           symmetry so SOMETHING can learn
-                                    │
-                    DoRA: decouple W = m·(V/‖V‖) — magnitude trained
-                          SEPARATELY; LoRA's B·A applies ONLY to direction
-                          ⇒ closer to how full fine-tuning actually moves    §35
-
-   ═══════════════════════════════════════════════════════════════════════════
-   PART 2's THIRD IDEA: PCA orders components by IMPORTANCE so truncation
-   after the fact is safe — but that ordering is COMPUTED, not TRAINED       §36–§39
-                                    │
-                    MRL bakes the SAME property in DURING TRAINING:
-                    L_Matryoshka = avg( L(z_1:8) + L(z_1:16) + ... + L(z_1:2048) )
-                    ⇒ every prefix independently forced to be a valid embedding
-                    ⇒ beats POST-HOC PCA because PCA orders by VARIANCE
-                      (task-blind); MRL orders by the TASK LOSS ITSELF
-                    ⇒ the embedding dimension becomes a RUNTIME CHOICE
+```mermaid
+flowchart TD
+    TH["<b>Part 2's theorem</b> · a linear autoencoder + MSE = exactly the PCA subspace (Baldi–Hornik) · §9–10<br/><small>'nonlinearity is the superpower' — the one thing that lets an autoencoder fit a curved manifold, not just a flat subspace</small>"]
+    TH --> DEN["<b>Denoising AE</b> — reconstruct clean from corrupted<br/><small>noise lives in the discarded low-rank directions · §12–14</small>"]
+    TH --> SP["<b>Sparse AE</b> — force units off via KL(Bernoulli(ρ) ‖ ρ̂)<br/><small>§16–18 → modern: LLM SAE interpretability</small>"]
+    DEN --> NG["<b>plain AE has two weaknesses</b> — it memorises, and its latent space has holes (nothing trained it to be smooth) ⇒ not generative · §19–20"]
+    SP --> NG
+    NG --> VAE["<b>VAE</b> — encode a distribution N(μ, σ²), not a point · §21–22<br/><small>reparam trick z = μ + σ⊙ε · ELBO = recon − KL(q ‖ p) · reverse KL (mode-seeking) ⇒ VAE's failure mode is predicted, not just observed</small>"]
+    VAE --> VQ["<b>VQ-VAE</b> — snap to codebook, discrete latents<br/><small>an image → tokens a Transformer can model (DALL·E, Jukebox) · §26–28</small>"]
+    VAE --> SD["the smooth, hole-free latent space is exactly what Stable Diffusion's VAE encoder needs"]
+    VQ --> LD["<b>Latent diffusion</b> — run the denoising inside that latent space, not pixels · §29–30<br/><small>512²×3 = 786,432 values, O(n²) attention on 262,144 tokens ⇒ infeasible in pixels · 64×64 latent ⇒ 64× fewer elements, 4,096× cheaper attention (extends to video: spatiotemporal VAE + DiT)</small>"]
+    SD --> LD
+    LD --> LORA["<b>Part 2's Eckart–Young</b> applied to a weight update ΔW, not data · §31–32<br/><small>LoRA: ΔW ≈ B·A, r ≪ min(d,k) · B = 0 at init ⇒ zero disruption, A random ⇒ breaks symmetry · DoRA: decouple W = m·(V/‖V‖), magnitude trained separately · §35</small>"]
+    LORA --> MRL["<b>Part 2's ordered components</b> baked in during training, not computed after · §36–39<br/><small>L_Matryoshka = avg(L(z_{1:8}) + L(z_{1:16}) + … + L(z_{1:2048})) · every prefix forced valid · beats post-hoc PCA (variance-blind) — MRL orders by the task loss itself ⇒ embedding dim becomes a runtime choice</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class TH,VAE,LD k
 ```
 
 ### Walking the diagram

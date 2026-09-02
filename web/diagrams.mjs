@@ -72,12 +72,14 @@ function collect() {
 // Pin the SVG to its natural pixel width (from the viewBox) so a narrow diagram is
 // never up-scaled by a wide column; max-width:100% still lets it shrink to fit.
 function responsive(svg) {
-  const vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg);
+  // the root <svg ...> tag only (mermaid also puts viewBox on marker defs)
+  const tag = /<svg\b[^>]*>/.exec(svg)?.[0] || '';
+  const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(tag);
   const w = vb ? Math.ceil(+vb[1]) : 720;
   return svg
-    .replace(/<svg([^>]*?)\sstyle="[^"]*"/, '<svg$1')
-    .replace(/<svg([^>]*?)\swidth="[^"]*"/, '<svg$1')
-    .replace(/<svg([^>]*?)\sheight="[^"]*"/, '<svg$1')
+    .replace(/<svg\b([^>]*?)\sstyle="[^"]*"/, '<svg$1')
+    .replace(/<svg\b([^>]*?)\swidth="[^"]*"/, '<svg$1')
+    .replace(/<svg\b([^>]*?)\sheight="[^"]*"/, '<svg$1')
     .replace('<svg ', `<svg preserveAspectRatio="xMidYMid meet" width="${w}" style="max-width:100%;height:auto" `);
 }
 

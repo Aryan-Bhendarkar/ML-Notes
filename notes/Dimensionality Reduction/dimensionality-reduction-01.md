@@ -64,18 +64,15 @@ The deck contains **40 distinct slide states** (33 content slides plus 7 section
 
 The lecture has a clean two-act structure, and knowing it up front makes everything easier:
 
-```
-ACT I  — WHY you must reduce dimensions        §1–§8
-         high-D geometry is pathological, and real data doesn't need all those dimensions
-
-ACT II — HOW, part one: keep a SUBSET of columns    §9–§26
-         three families, in increasing order of how much they know about your model:
-           filter    — knows nothing about the model        (fast, blind to interactions)
-           wrapper   — knows only the model's score         (slow, sees everything)
-           embedded  — is part of the model's training      (the practical default)
-
-         HOW, part two: BUILD NEW columns  →  needs eigenvectors  →  §27–§31
-         (and Part 2 of this module is that whole story)
+```mermaid
+flowchart TD
+    I["<b>Act I — WHY</b> reduce dimensions · §1–8<br/><small>high-D geometry is pathological; real data doesn't need all those dimensions</small>"]
+    I --> II["<b>Act II — HOW</b>"]
+    II --> SEL["<b>Keep a subset of columns</b> · §9–26"]
+    SEL --> FIL["<b>filter</b> — knows nothing about the model<br/><small>fast, blind to interactions</small>"]
+    SEL --> WRA["<b>wrapper</b> — knows only the model's score<br/><small>slow, sees everything</small>"]
+    SEL --> EMB["<b>embedded</b> — is part of the model's training<br/><small>the practical default</small>"]
+    II --> EXT["<b>Build new columns</b> · needs eigenvectors · §27–31<br/><small>(and all of Part 2 of this module)</small>"]
 ```
 
 If you are revising under time pressure: **§2 and §22–§23 are the interview core.** "Why does kNN
@@ -310,42 +307,19 @@ And there are two philosophies for doing it:
 
 ### The whole lecture in one diagram
 
-```
-                    p features, and p is too large
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        ▼                                               ▼
-   WHY IT'S BAD  (Act I)                        WHAT TO DO  (Act II)
-   ─────────────────────                        ────────────────────
-   §1 volume concentration                      manifold hypothesis §7
-      d=3: 52%  →  d=10: 0.25%                  "real data is low-D
-   §2 distance concentration                     inside a high-D box"
-      spread stays FIXED, mean grows √d                 │
-      ⇒ contrast ~ 0.59/√d                              │
-   §3 empty space                                       ▼
-      10 bins/axis, d=20 ⇒ 10²⁰ points          ┌───────┴────────┐
-   §4 what breaks: kNN, kernels,                ▼                ▼
-      overfitting, plots, compute          SELECTION         EXTRACTION
-                                        keep a subset      build new columns
-                                        of the columns     from combinations
-                                               │                │
-                        ┌──────────────────────┼───────┐        │
-                        ▼                      ▼       ▼        ▼
-                   §15 FILTER            §12 WRAPPER  §20 EMBEDDED   §27–§31
-                   score each feature    train a      penalty inside  LINEAR ALGEBRA
-                   alone, then cut       model per    the loss        covariance Σ
-                        │                 subset          │           eigen Σv = λv
-                   knows NOTHING       knows the      IS the model    Σ = VΛVᵀ
-                   about the model     model's score      │           scree plot
-                        │                  │              │                │
-                   O(p), blind to     O(p·d) fits,   Ridge / Lasso /       ▼
-                   interactions       sees everything Elastic Net    ═════════════
-                        │                  │              │          PCA = eigen-
-                   variance thresh    forward sel.   ridge: circle   decomposition
-                   Pearson r          RFE            lasso: diamond  of covariance
-                   mutual info                       ⇒ CORNERS ON       (Part 2)
-                   χ² / ANOVA                          THE AXES
-                                                     ⇒ sparsity
+```mermaid
+flowchart TD
+    P["<b>p features, and p is too large</b>"]
+    P --> BAD["<b>Why it's bad — Act I</b><br/><small>§1 volume concentration (d=3: 52% → d=10: 0.25%)<br/>§2 distance concentration — contrast ~ 0.59/√d<br/>§3 empty space — 10 bins/axis, d=20 ⇒ 10²⁰ points<br/>§4 what breaks: kNN, kernels, overfitting, plots, compute</small>"]
+    P --> DO["<b>What to do — Act II</b><br/><small>§7 manifold hypothesis: real data is low-D inside a high-D box</small>"]
+    DO --> S["<b>Selection</b> — keep a subset of columns"]
+    DO --> E["<b>Extraction</b> — build new columns from combinations"]
+    S --> F["<b>§15 Filter</b><br/><small>score each feature alone, then cut · O(p), blind to interactions<br/>variance threshold · Pearson r · mutual info · χ² / ANOVA</small>"]
+    S --> W["<b>§12 Wrapper</b><br/><small>train a model per subset · sees everything<br/>forward selection · RFE</small>"]
+    S --> M["<b>§20 Embedded</b><br/><small>penalty inside the loss · Ridge / Lasso / Elastic Net<br/>ridge → circle · lasso → diamond ⇒ corners on the axes ⇒ sparsity</small>"]
+    E --> LA["<b>§27–31 Linear algebra</b><br/><small>covariance Σ · eigen Σv = λv · Σ = VΛVᵀ · scree plot<br/>⇒ PCA = eigendecomposition of the covariance (Part 2)</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class LA k
 ```
 
 ---
@@ -1041,28 +1015,17 @@ early — is a mark of someone who has shipped models rather than only trained t
 
 The map for the whole module [slide 45, 30:53]:
 
-```
-                        ┌────────────────────────┐
-                        │ Dimensionality         │
-                        │ Reduction              │
-                        └───────────┬────────────┘
-                    ┌───────────────┴────────────────┐
-                    ▼                                ▼
-        ┌───────────────────────┐        ┌───────────────────────┐
-        │  Feature Selection    │        │  Feature Extraction   │
-        │  (keep a subset)      │        │  (build combinations) │
-        └───────────┬───────────┘        └───────────┬───────────┘
-          ┌─────────┼─────────┐              ┌───────┴────────┐
-          ▼         ▼         ▼              ▼                ▼
-      ┌───────┐ ┌───────┐ ┌────────┐    ┌────────┐    ┌─────────────┐
-      │Filter │ │Wrapper│ │Embedded│    │ Linear │    │  Nonlinear  │
-      └───┬───┘ └───┬───┘ └───┬────┘    └───┬────┘    └──────┬──────┘
-          │         │         │             │                │
-     MI, Chi²,  Forward,  Lasso,        PCA, LDA       t-SNE, UMAP,
-     Variance   Backward, Ridge,                       Autoencoders
-                RFE       Trees
-          │         │         │             │                │
-        §15–19    §12–14    §20–26     ◄─── Part 2 & 3 of this module ───►
+```mermaid
+flowchart TD
+    DR(["<b>Dimensionality Reduction</b>"])
+    DR --> FS["<b>Feature Selection</b><br/><small>keep a subset</small>"]
+    DR --> FE["<b>Feature Extraction</b><br/><small>build combinations</small>"]
+    FS --> FI["Filter<br/><small>MI · χ² · variance · §15–19</small>"]
+    FS --> WR["Wrapper<br/><small>forward · backward · RFE · §12–14</small>"]
+    FS --> EM["Embedded<br/><small>Lasso · Ridge · trees · §20–26</small>"]
+    FE --> LIN["Linear<br/><small>PCA · LDA</small>"]
+    FE --> NON["Nonlinear<br/><small>t-SNE · UMAP · autoencoders</small>"]
+    LIN -.->|"Part 2 & 3 of this module"| NON
 ```
 
 **Everything named in that tree is covered somewhere in this module**, and the leaves tell you where:
@@ -1168,13 +1131,10 @@ certainty. §18's worked example computes the mutual information here as **1.522
 
 > *"Use model performance to evaluate feature subsets"* [slide 48, 31:45]
 
-```
-     ┌──────────────┐    ┌─────────────┐    ┌───────────────┐    ┌──────────┐
-     │ Select Subset│───▶│ Train Model │───▶│ Evaluate (CV) │───▶│  Update  │
-     └──────▲───────┘    └─────────────┘    └───────────────┘    └────┬─────┘
-            │                                                          │
-            └──────────────────────────────────────────────────────────┘
-                                 try a different subset
+```mermaid
+flowchart LR
+    A["Select subset"] --> B["Train model"] --> C["Evaluate (CV)"] --> D["Update"]
+    D -->|"try a different subset"| A
 ```
 
 > - *"**Scoring**: cross-validated accuracy, AUC, or any metric"*
@@ -1397,13 +1357,9 @@ from sklearn.feature_selection import RFECV
 
 > *"Score each feature independently, then threshold"* [slide 54, 35:33]
 
-```
-   ┌──────┐         ┌────────────────┐        ┌───────────┐        ┌──────────────┐
-   │  x₁  │         │  Score(xⱼ, y)  │        │ Threshold │        │   Selected   │
-   │  x₂  │────────▶│  MI, χ²,       │───────▶│ top-k or  │───────▶│ subset S ⊂   │
-   │  x₃  │         │  correlation   │        │  cutoff   │        │  {x₁,…,x_p}  │
-   │  …   │         └────────────────┘        └───────────┘        └──────────────┘
-   └──────┘
+```mermaid
+flowchart LR
+    X["x₁, x₂, x₃, …"] --> S["Score(xⱼ, y)<br/><small>MI · χ² · correlation</small>"] --> T["Threshold<br/><small>top-k or cutoff</small>"] --> R["Selected subset<br/>S ⊂ {x₁, …, x_p}"]
 ```
 
 > - *"**Fast**: $\mathcal{O}(p)$ scoring, no model training"*
@@ -1907,22 +1863,16 @@ from sklearn.feature_selection import SelectKBest, f_classif, chi2, mutual_info_
 
 ### 19.3 The decision tree for choosing a filter
 
-```
-What is your TARGET?
-│
-├── Categorical (classification)
-│   ├── Feature continuous  ──▶  ANOVA F-test        f_classif
-│   └── Feature categorical ──▶  Chi-square           chi2 (on one-hot counts)
-│
-└── Continuous (regression)
-    ├── Feature continuous  ──▶  Pearson r            f_regression
-    │                             (or Spearman if you expect a monotone curve)
-    └── Feature categorical ──▶  ANOVA F-test, roles swapped
-                                  (group the target by the feature's categories)
-
-    ...and if you suspect a NON-MONOTONIC relationship, or don't know:
-                             ──▶  Mutual information  mutual_info_*
-                                  (slower, noisier, but assumption-free)
+```mermaid
+flowchart TD
+    Q["<b>What is your target?</b>"]
+    Q -->|"categorical (classification)"| C1["feature continuous → <b>ANOVA F-test</b> (f_classif)"]
+    Q -->|"categorical (classification)"| C2["feature categorical → <b>χ²</b> (chi2, on one-hot counts)"]
+    Q -->|"continuous (regression)"| R1["feature continuous → <b>Pearson r</b> (f_regression)<br/><small>Spearman if you expect a monotone curve</small>"]
+    Q -->|"continuous (regression)"| R2["feature categorical → <b>ANOVA F-test</b>, roles swapped"]
+    Q -->|"non-monotonic, or you don't know"| MI["<b>Mutual information</b> (mutual_info_*)<br/><small>slower, noisier, assumption-free</small>"]
+    classDef ask fill:#242119,stroke:#E6BA55,stroke-width:1.4px,color:#EDE6D7
+    class Q ask
 ```
 
 ---
@@ -2322,20 +2272,17 @@ strictly-convex L2 term breaks the within-group tie so members of a group are ke
 The plot shows solid orange Lasso curves hitting the axis at different points, against dashed teal
 Ridge curves that approach it asymptotically and never arrive.
 
+```mermaid
+xychart-beta
+    title "Regularisation paths — Lasso coefficients driven to exactly zero"
+    x-axis "λ (regularisation strength)" 0 --> 10
+    y-axis "coefficient βⱼ" 0 --> 4
+    line [3.6, 2.4, 1.3, 0.5, 0.0, 0.0, 0.0]
+    line [3.1, 1.7, 0.7, 0.1, 0.0, 0.0, 0.0]
+    line [2.7, 1.1, 0.3, 0.0, 0.0, 0.0, 0.0]
 ```
-   βⱼ │╲╲╲
-      │ ╲ ╲╲ ─ ─ ─               Lasso (solid): each curve TOUCHES ZERO
-      │  ╲  ╲╲     ─ ─ ─         Ridge (dashed): each curve APPROACHES zero
-      │   ╲   ╲╲        ─ ─ ─
-      │╲   ╲    ╲╲           ─ ─ ─
-      │ ╲   ╲     ╲╲
-      │  ╲   ╲      ╲╲
-      │───●────●──────●──────────────  ← the axis: Lasso arrives, Ridge doesn't
-      └────────────────────────────── λ →
-        f₃   f₂      f₁
-        dies dies    dies
-        first        last  ⇒ f₁ is the most important
-```
+
+As λ grows, each Lasso coefficient shrinks and then **hits exactly zero** — f₃ dies first, f₁ last, so f₁ is the most important. Ridge coefficients only *approach* zero and never arrive.
 
 ### 25.1 The third bullet is the useful one
 
@@ -2437,13 +2384,9 @@ Reading them off costs nothing. This is `feature_importances_` in sklearn.
 
 Shuffle one feature's column and measure how much performance drops.
 
-```
-1. Score the trained model on held-out data      → baseline
-2. For each feature j:
-       shuffle column j (destroying its relationship with y, keeping its marginal)
-       re-score                                   → score_j
-       importance_j = baseline − score_j
-```
+1. Score the trained model on held-out data → **baseline**.
+2. For each feature *j*: shuffle column *j* (destroying its relationship with *y* while keeping its marginal), re-score → **score_j**.
+3. **importance_j = baseline − score_j**.
 
 **Why shuffling rather than dropping:** dropping a column changes the input shape and would require
 retraining; shuffling keeps the shape and the marginal distribution intact while destroying only the
@@ -3031,68 +2974,23 @@ it. If $k = d$, then $V_kV_k^\top = I$ and the error is exactly zero — the los
 
 ## Putting it together
 
-```
-                    ┌────────────────────────────────────────────┐
-                    │  ONE FACT DRIVES ACT I:                    │
-                    │  volume grows EXPONENTIALLY in d,          │
-                    │  and your sample size does not.            │
-                    └──────────────────┬─────────────────────────┘
-              ┌────────────────────────┼────────────────────────┐
-              ▼                        ▼                        ▼
-    §1 VOLUME               §2 DISTANCE                §3 EMPTY SPACE
-    ball/cube → 0           mean ~ √d, spread FIXED    need k^d points
-    52% (d=3) → 0.25%       ⇒ contrast ~ 0.59/√d       n=1000, d=20
-    (d=10)                  ⇒ "nearest" is meaningless ⇒ 10⁻¹⁷ of the space
-              └────────────────────────┼────────────────────────┘
-                                       ▼
-                          §4 kNN · kernels · overfitting
-                             p≫n ⇒ ANY labelling is fittable
-                                       │
-                                       ▼
-                    ┌──────────────────────────────────────┐
-                    │  §7 THE MANIFOLD HYPOTHESIS          │
-                    │  ambient dim ≠ intrinsic dim         │
-                    │  100K pixels, ~50 real knobs         │
-                    │  ⚠️ an ASSUMPTION, and it can fail   │
-                    └──────────────────┬───────────────────┘
-                    ┌──────────────────┴───────────────────┐
-                    ▼                                      ▼
-        ═══ SELECTION: keep columns ═══        ═══ EXTRACTION: build columns ═══
-                    │                                      │
-    how much does it know about the model?                 │
-    ┌───────────────┼───────────────┐                      │
-    ▼               ▼               ▼                      │
- §15 FILTER    §12 WRAPPER    §20 EMBEDDED                 │
- nothing       its score      IS the model                 │
- O(p), 0 fits  O(p·d) fits    ~1 fit                       │
-    │               │               │                      │
- §16 variance   §13 forward    §21 Ridge  (circle)          │
- §17 Pearson    (XOR fails!)   §22 Lasso  (DIAMOND)         │
- §18 MI         §14 RFE        §23 ElasticNet               │
- §19 χ²/ANOVA   (202× cheaper) §25 paths                    │
-    │                          §26 tree importance          │
-    │                               │                      │
- ⚠️ ALL univariate            ⚠️ correlated features        │
- ⇒ blind to XOR                 break: Lasso picks one      │
- (MI too! §18.3)                arbitrarily → ElasticNet    │
-                                                            ▼
-                            ┌───────────────────────────────────────────┐
-                            │  §27  Σ = (1/n)XᵀX      symmetric, PSD    │
-                            │       vᵀΣv = variance along v             │
-                            │              ▼                            │
-                            │  §28  Σv = λv    eigenvector = direction  │
-                            │                  eigenvalue  = variance   │
-                            │              ▼                            │
-                            │  §29  Σ = VΛVᵀ   rotate·scale·rotate back │
-                            │       = V(S²/n)Vᵀ  ⇐ SVD of X             │
-                            │              ▼                            │
-                            │  §30  scree plot ⇒ how many do you need?  │
-                            │              ▼                            │
-                            │  §31  PCA: max variance ≡ min recon error │
-                            │       Σλᵢ = Σ_{i≤k}λᵢ + Σ_{i>k}λᵢ         │
-                            └──────────────────┬────────────────────────┘
-                                               ▼
-                                        PART 2 OF THIS MODULE
+```mermaid
+flowchart TD
+    ROOT["<b>One fact drives Act I</b><br/><small>volume grows exponentially in d, and your sample size does not</small>"]
+    ROOT --> V["<b>§1 Volume</b> · ball/cube → 0 · 52% (d=3) → 0.25% (d=10)"]
+    ROOT --> D["<b>§2 Distance</b> · mean ~ √d, spread fixed ⇒ contrast ~ 0.59/√d ⇒ 'nearest' is meaningless"]
+    ROOT --> EMP["<b>§3 Empty space</b> · need kᵈ points · n = 1000, d = 20 ⇒ 10⁻¹⁷ of the space"]
+    V & D & EMP --> BR["<b>§4</b> kNN · kernels · overfitting — p ≫ n ⇒ any labelling is fittable"]
+    BR --> MAN["<b>§7 The manifold hypothesis</b><br/><small>ambient dim ≠ intrinsic dim · 100K pixels, ~50 real knobs · ⚠️ an assumption, and it can fail</small>"]
+    MAN --> SEL["<b>Selection — keep columns</b>"]
+    MAN --> EXT["<b>Extraction — build columns</b>"]
+    SEL -->|"knows nothing · O(p), 0 fits"| FIL["<b>§15–19 Filter</b><br/><small>variance · Pearson · MI · χ²/ANOVA · ⚠️ all univariate ⇒ blind to XOR</small>"]
+    SEL -->|"knows its score · O(p·d) fits"| WRA["<b>§12–14 Wrapper</b><br/><small>forward (XOR fails!) · RFE (202× cheaper)</small>"]
+    SEL -->|"IS the model · ~1 fit"| EMB["<b>§20–26 Embedded</b><br/><small>§21 Ridge (circle) · §22 Lasso (diamond) · §23 Elastic Net · §25 paths · §26 tree importance<br/>⚠️ correlated features break Lasso → it picks one arbitrarily → Elastic Net</small>"]
+    EXT --> PCA["<b>§27–31 Linear algebra → PCA</b><br/><small>Σ = (1/n)XᵀX (symmetric, PSD) · vᵀΣv = variance along v · Σv = λv · Σ = VΛVᵀ = V(S²/n)Vᵀ ⇐ SVD of X<br/>scree plot ⇒ how many? · PCA: max variance ≡ min reconstruction error</small>"]
+    PCA --> P2(["Part 2 of this module"])
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class MAN,PCA,P2 k
 ```
 
 ### Walking the diagram

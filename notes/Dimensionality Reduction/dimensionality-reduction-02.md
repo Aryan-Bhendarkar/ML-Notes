@@ -78,20 +78,15 @@ motivation, and a closing card).
 
 The four topics are not four unrelated methods — they are one idea plus three modifications:
 
-```
-    SVD          X = UΣVᵀ          the universal factorisation. Nothing assumed.
-     │
-     ├─ centre the data first  ────────▶  PCA          §8–§15
-     │                                    directions of maximum variance
-     │                                    + kernel trick ⇒ curved manifolds
-     │
-     ├─ only some entries observed ─────▶  MF           §16
-     │  + require everything ≥ 0    ────▶  NMF          §17–§20
-     │                                    parts, not wholes; topics
-     │
-     └─ give up on linearity entirely ──▶  t-SNE/UMAP   §21–§28
-                                          match probability distributions,
-                                          minimise KL / cross-entropy
+```mermaid
+flowchart TD
+    SVD["<b>SVD</b> · X = UΣVᵀ<br/><small>the universal factorisation — nothing assumed</small>"]
+    SVD -->|"centre the data first"| PCA["<b>PCA</b> · §8–15<br/><small>directions of maximum variance · + kernel trick ⇒ curved manifolds</small>"]
+    SVD -->|"only some entries observed"| MF["<b>Matrix Factorisation</b> · §16"]
+    MF -->|"require everything ≥ 0"| NMF["<b>NMF</b> · §17–20<br/><small>parts, not wholes; topics</small>"]
+    SVD -->|"give up on linearity entirely"| TSNE["<b>t-SNE / UMAP</b> · §21–28<br/><small>match probability distributions · minimise KL / cross-entropy</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SVD k
 ```
 
 If you are revising under time pressure: **§2, §8 and §23 are the interview core.** "What is the
@@ -284,44 +279,18 @@ distribution-matching problem solved by minimising KL divergence.
 
 ### The whole lecture in one diagram
 
-```
-   8.5 BILLION Netflix entries, 100M observed. Do 8.5B numbers describe taste?     §1
-                                    │  (winning model: k = 50–200)
-                                    ▼
-   ┌──────────────────────────────────────────────────────────────────┐
-   │  §2  SVD:   X = U Σ Vᵀ = Σᵢ σᵢ uᵢ vᵢᵀ                            │
-   │             ▲ a SUM OF RANK-1 PIECES, ordered by σ                │
-   │      XᵀX vᵢ = σᵢ² vᵢ      XXᵀ uᵢ = σᵢ² uᵢ                        │
-   │      ⇒ SVD ⟷ eigendecomposition of a symmetric matrix            │
-   │  §3  computed by power iteration + deflation                      │
-   │  §4  truncate to k ⇒ storage m·n → k(m+n+1)                       │
-   │      Eckart–Young: this is PROVABLY the best rank-k approximation │
-   │  §5  read the σ plot: sharp drop = low-rank · flat = pure noise   │
-   │  §6  butterfly 16,384 numbers → k=20 → 5,140 (3.2×, err 0.146)    │
-   │  §7  LSI: term×doc SVD ⇒ the top k singular vectors ARE topics    │
-   └───────────────────────────────┬──────────────────────────────────┘
-             ┌─────────────────────┼─────────────────────┐
-             ▼                     ▼                     ▼
-    CENTRE THE DATA        DON'T OBSERVE IT ALL     ABANDON LINEARITY
-             │                     │                     │
-   ┌─────────┴──────────┐  ┌───────┴────────┐   ┌────────┴─────────────┐
-   │ §8  PCA = SVD of   │  │ §16 MF         │   │ §21 PCA folds curved │
-   │     CENTRED data   │  │   R ≈ P Qᵀ     │   │     manifolds        │
-   │ §9  rotation keeps │  │   fit only the │   │ §22 t-SNE 3 steps    │
-   │     total variance │  │   OBSERVED     │   │     Gaussian in high-D│
-   │     FIXED (5947.5) │  │   cells        │   │     Student-t in low-D│
-   │ §10 Iris: 4-D → 2-D│  │ §17 NMF: X≈WH  │   │     ⇒ crowding fixed  │
-   │     73.0 + 22.9 =  │  │     W,H ≥ 0    │   │ §23 KL(P‖Q) ≥ 0,     │
-   │     95.8%          │  │ §18 parts, not │   │     ASYMMETRIC        │
-   │ §11 eigenfaces     │  │     wholes     │   │     H(P,Q)=H(P)+KL    │
-   │ §12 k=1 avg face,  │  │ §19 topic      │   │ §24 forward=covering  │
-   │     k=20 identity  │  │     modelling  │   │     reverse =seeking  │
-   │     ⇒ a DENOISER   │  │ §20 6 topics   │   │ §25 VAE·distill·PPO   │
-   │ §13 PCA is a LINEAR│  │     from real  │   │ §26 perplexity 5–50   │
-   │     AUTOENCODER    │  │     reviews    │   │ §27 UMAP: fuzzy graph │
-   │ §14 Swiss roll ✗   │  └────────────────┘   │ §28 PCA·t-SNE·UMAP    │
-   │ §15 KERNEL PCA ✓   │                       └───────────────────────┘
-   └────────────────────┘
+```mermaid
+flowchart TD
+    Q["<b>8.5 billion Netflix entries, 100M observed</b><br/><small>do 8.5B numbers describe taste? winning model: k = 50–200 · §1</small>"]
+    Q --> SVD["<b>§2–7 SVD</b> · X = UΣVᵀ = Σᵢ σᵢ uᵢ vᵢᵀ<br/><small>a sum of rank-1 pieces, ordered by σ · SVD ⟷ eigendecomposition of a symmetric matrix<br/>power iteration + deflation · truncate to k ⇒ Eckart–Young: provably the best rank-k · read the σ plot · LSI: singular vectors ARE topics</small>"]
+    SVD --> C["<b>Centre the data</b>"]
+    SVD --> P["<b>Don't observe it all</b>"]
+    SVD --> N["<b>Abandon linearity</b>"]
+    C --> PCA["<b>§8–15 PCA</b> = SVD of centred data<br/><small>rotation keeps total variance fixed (5947.5) · Iris 4-D → 2-D (95.8%) · eigenfaces: k=1 avg face, k=20 identity ⇒ a denoiser<br/>PCA is a linear autoencoder · Swiss roll ✗ · Kernel PCA ✓</small>"]
+    P --> MF["<b>§16–20 MF / NMF</b><br/><small>R ≈ PQᵀ, fit only the observed cells · NMF: X ≈ WH, W,H ≥ 0 ⇒ parts, not wholes ⇒ topic modelling (6 topics from real reviews)</small>"]
+    N --> TS["<b>§21–28 t-SNE / UMAP</b><br/><small>Gaussian in high-D, Student-t in low-D ⇒ crowding fixed · KL(P‖Q) ≥ 0, asymmetric · forward = covering, reverse = seeking<br/>perplexity 5–50 · UMAP: fuzzy graph · PCA → t-SNE → UMAP</small>"]
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SVD,PCA k
 ```
 
 ---
@@ -1196,11 +1165,9 @@ for name, A in [("noisy", noisy), ("denoised", denoised)]:
 
 **This is the slide that connects the whole module to deep learning** [slide 48, 24:52].
 
-```
-   ┌──────────┐    ┌───────────────┐    ┌─────────┐    ┌───────────────┐    ┌──────────┐
-   │    x     │───▶│    Encoder    │───▶│    z    │───▶│    Decoder    │───▶│    x̂     │
-   │  (m dim) │    │   z = Vᵣᵀ x   │    │ (r dim) │    │   x̂ = Vᵣ z    │    │  (m dim) │
-   └──────────┘    └───────────────┘    └─────────┘    └───────────────┘    └──────────┘
+```mermaid
+flowchart LR
+    X["x<br/><small>(m dim)</small>"] --> E["Encoder<br/>z = Vᵣᵀ x"] --> Z["z<br/><small>(r dim)</small>"] --> D["Decoder<br/>x̂ = Vᵣ z"] --> XH["x̂<br/><small>(m dim)</small>"]
 ```
 
 > *"PCA is a **linear autoencoder with tied weights**. Encoder: $z = U_r^\top x$. Decoder:
@@ -2456,50 +2423,18 @@ Z_umap = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=0).fit_transform(X
 
 ## Putting it together
 
-```
-        ┌────────────────────────────────────────────────────────────────┐
-        │  §2   X = U Σ Vᵀ = Σᵢ σᵢ uᵢ vᵢᵀ    ← a SUM OF RANK-1 PIECES    │
-        │       XᵀX vᵢ = σᵢ² vᵢ     XXᵀ uᵢ = σᵢ² uᵢ                      │
-        │       ⇒ the SVD IS two eigendecompositions at once             │
-        │  §3   power iteration: error ~ (λ₂/λ₁)ᵏ · then deflate         │
-        │  §4   truncate ⇒ Eckart–Young: PROVABLY the best rank-k        │
-        │       ‖X − X_k‖²_F = Σ_{i>k} σᵢ²   (verified in §6 to 3 d.p.)  │
-        │  §5   the σ-plot tells you IF there is a k at all              │
-        │  §7   on term×doc: the singular vectors ARE topics (LSI)       │
-        └───────────────────────────┬────────────────────────────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        ▼                           ▼                           ▼
-   CENTRE IT                  DON'T OBSERVE IT ALL         ABANDON LINEARITY
-        │                           │                           │
-   ┌────┴──────────────┐   ┌────────┴────────────┐   ┌──────────┴─────────────┐
-   │ §8  PCA = SVD of  │   │ §16 MF: fit only    │   │ §21 preserve NEIGHBOUR │
-   │     CENTRED data  │   │     the OBSERVED    │   │     PROBABILITIES, not │
-   │     uncentred ⇒   │   │     cells           │   │     distances          │
-   │     PC1 points at │   │     ⚠️ NOT truncated│   │ §22 t-SNE: Gaussian in │
-   │     the MEAN      │   │     SVD — no Eckart-│   │     high-D, STUDENT-t  │
-   │ §9  total energy  │   │     Young, non-cvx  │   │     in low-D           │
-   │     is INVARIANT  │   │     + biases first  │   │     ⇒ crowding cured   │
-   │     (5947.5 both  │   │ §17 NMF: add W,H ≥ 0│   │ §23 KL(P‖Q) ≥ 0, NOT a │
-   │     angles)       │   │     ⇒ cannot        │   │     metric             │
-   │     ⇒ PCA CHOOSES │   │       SUBTRACT      │   │     H(P,Q)=H(P)+KL     │
-   │       how to      │   │ §18 ⇒ PARTS, not    │   │     ⇒ why cross-entropy│
-   │       DISTRIBUTE  │   │       wholes        │   │ §24 FORWARD covers ·   │
-   │ §10 Iris 95.8%    │   │ §19 ⇒ readable      │   │     REVERSE seeks      │
-   │     ⚠️ scale first│   │       topics where  │   │     ⇒ t-SNE keeps LOCAL│
-   │ §11 eigenfaces:   │   │       LSI can't     │   │       ignores GLOBAL   │
-   │     PC1–3 are     │   │ §20 six real topics │   │ §25 VAE·distil·PPO·MI  │
-   │     LIGHTING      │   └─────────────────────┘   │ §26 perplexity = 2^H   │
-   │ §12 ⇒ a DENOISER  │                             │     ⚠️ low perp INVENTS│
-   │ §13 PCA is a      │                             │        clusters        │
-   │     LINEAR AUTO-  │──── nonlinearity is the ───▶│ §27 UMAP adds a        │
-   │     ENCODER       │     only thing a deep AE     │     REPULSIVE term     │
-   │ §14 Swiss roll ✗  │     adds (Baldi–Hornik)     │     ⇒ some global      │
-   │     ambient ≠     │                             │ §28 PCA→50D→t-SNE/UMAP │
-   │     geodesic      │                             └────────────────────────┘
-   │ §15 KERNEL PCA ✓  │
-   │     ⚠️ O(N³)      │
-   └───────────────────┘
+```mermaid
+flowchart TD
+    SVD["<b>§2–7 SVD</b> · X = UΣVᵀ = Σᵢ σᵢ uᵢ vᵢᵀ — a sum of rank-1 pieces<br/><small>XᵀX vᵢ = σᵢ² vᵢ, XXᵀ uᵢ = σᵢ² uᵢ ⇒ the SVD is two eigendecompositions at once<br/>power iteration ~ (λ₂/λ₁)ᵏ, then deflate · Eckart–Young: ‖X − X_k‖²_F = Σ_{i>k} σᵢ² · the σ-plot tells you IF there is a k · on term×doc, singular vectors ARE topics (LSI)</small>"]
+    SVD --> C["<b>Centre it</b>"]
+    SVD --> O["<b>Don't observe it all</b>"]
+    SVD --> L["<b>Abandon linearity</b>"]
+    C --> PCA["<b>§8–15 PCA</b> = SVD of centred data<br/><small>uncentred ⇒ PC1 points at the mean · total energy invariant (5947.5) ⇒ PCA chooses how to distribute it<br/>Iris 95.8% (⚠️ scale first) · eigenfaces PC1–3 are lighting ⇒ a denoiser · PCA is a linear autoencoder<br/>Swiss roll ✗ (ambient ≠ geodesic) · Kernel PCA ✓ (⚠️ O(N³))</small>"]
+    O --> MF["<b>§16–20 MF / NMF</b><br/><small>fit only the observed cells (⚠️ not truncated SVD — no Eckart–Young, non-convex, biases first)<br/>NMF: W,H ≥ 0 ⇒ cannot subtract ⇒ parts not wholes ⇒ readable topics where LSI can't (6 real topics)</small>"]
+    L --> TS["<b>§21–28 t-SNE / UMAP</b> · preserve neighbour probabilities, not distances<br/><small>Gaussian high-D, Student-t low-D ⇒ crowding cured · KL(P‖Q) ≥ 0, not a metric · forward covers / reverse seeks ⇒ t-SNE keeps local, ignores global<br/>perplexity = 2^H (⚠️ low perp invents clusters) · UMAP adds a repulsive term ⇒ some global · PCA → 50-D → t-SNE / UMAP</small>"]
+    PCA -.->|"nonlinearity is the only thing a deep AE adds (Baldi–Hornik)"| L
+    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
+    class SVD,PCA k
 ```
 
 ### Walking the diagram
