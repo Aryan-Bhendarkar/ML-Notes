@@ -113,9 +113,30 @@ figures (sliders / live plots / bar charts, all inline SVG, no deps). The other
 90 render their `fallback` as complete standalone teaching prose. To add more,
 add an entry to `INTERACTIVE` keyed by the block's exact `title:`.
 
+## Local preview & real-browser QA
+
+```
+npm run build:all     # rebuild every module + docs/index.html
+npm run preview        # serve docs/ at http://localhost:5173  (zero-dep, preview.mjs)
+npm run dev            # build:all then preview, one command
+```
+
+`preview.mjs` mirrors GitHub Pages closely enough for visual QA: `/` → `index.html`,
+extensionless paths resolve to `.html`, unknown paths serve `docs/404.html`.
+
+A **Playwright MCP** server is registered at user scope (`claude mcp list` shows
+`playwright`), so Claude Code can drive a real Chromium in this or any project —
+navigate to the preview URL, screenshot each module, click the interactive
+figures, resize for mobile — then fix and rebuild in a loop. First run downloads
+the browser (~150 MB, cached after). Ask e.g. *"run npm run dev, open
+localhost:5173 in the browser, screenshot every module page and the interactive
+blocks, list anything visually broken, fix it, rebuild."*
+
+To reinstall on another machine: `claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --isolated`
+
 ## Still to do (later passes)
 
 - More interactive figures (28 / 118 done — the highest-value sliders per module)
 - SVG redraws of ASCII diagrams (kept as styled `<pre>` for now)
 - Syntax highlighting for `python` blocks (styled, not tokenised)
-- Real-browser visual QA pass (all testing so far is jsdom + fidelity counts)
+- Real-browser visual QA pass — tooling now in place (Playwright MCP + `npm run preview`); pass itself still to run

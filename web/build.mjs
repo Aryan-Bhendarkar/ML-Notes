@@ -3,6 +3,7 @@
 //
 //   node build.mjs "Supervised Learning"
 //   node build.mjs --home        # rebuild only docs/index.html
+//   node build.mjs --all         # rebuild every module + the home page
 //
 import fs from 'node:fs';
 import path from 'node:path';
@@ -228,8 +229,19 @@ if (arg === '--home') {
   console.log('  wrote docs/index.html');
   process.exit(0);
 }
+if (arg === '--all') {
+  for (const m of course) {
+    const r = buildModule(m, course);
+    const kb = (fs.statSync(r.outPath).size / 1024).toFixed(0);
+    const bad = ['h2', 'details', 'rows', 'warn', 'interactive'].filter(k => r.counts[k] !== r.srcCounts[k]);
+    console.log(`  ${bad.length ? '!!' : 'ok'} docs/${m.slug}.html  (${kb} KB)${bad.length ? `  MISMATCH: ${bad.join(', ')}` : ''}`);
+  }
+  buildHome(course);
+  console.log(`\n  built ${course.length} modules + docs/index.html\n`);
+  process.exit(0);
+}
 if (!arg) {
-  console.log('usage: node build.mjs "<Module Name>"   (or --home)\n\nmodules:');
+  console.log('usage: node build.mjs "<Module Name>"   (or --home / --all)\n\nmodules:');
   course.forEach(m => console.log(`  ${m.name}`));
   process.exit(1);
 }
