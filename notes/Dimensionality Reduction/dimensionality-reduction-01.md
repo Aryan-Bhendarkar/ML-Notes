@@ -885,7 +885,8 @@ carefully — *"**If** the manifold hypothesis holds"* — and that conditional 
   failure mode, it is silent, and it is the best objection to raise when someone proposes PCA
   reflexively.** Note that PCA is *unsupervised*: it never looks at $y$, so it cannot know which
   directions matter for your task. (LDA, in the taxonomy at §10, is the supervised alternative that
-  can.)
+  can. §30.1 works this failure through with actual eigenvalues once PCA's machinery — covariance,
+  eigenvectors — is on the table in §27–§29.)
 - **Non-smooth or disconnected structure.** Categorical variables and discrete jumps don't form
   smooth manifolds, and methods assuming smoothness handle them badly.
 
@@ -1292,14 +1293,16 @@ Removing more per round is cheaper still, at the cost of granularity:
 | 50 | 20 | 990× cheaper |
 | Halve each round | ~6 | 3,300× cheaper |
 
-> ⚠️ **The trade-off with large $k$: importance rankings shift as features are removed.** If two
-> features are highly correlated, a model splits the credit between them, so *both* look moderately
-> unimportant — and removing $k=50$ at once can drop both, when keeping either one alone would have
-> been fine. Removing fewer per round lets the survivor's importance rise before the next cut. This is
-> the same correlated-feature pathology that §22 shows for Lasso and §23 fixes with Elastic Net; it
-> recurs throughout the lecture.
+### 14.2 ⚠️ The correlated-feature caveat
 
-### 14.2 Is RFE a wrapper or an embedded method?
+**The trade-off with large $k$: importance rankings shift as features are removed.** If two
+features are highly correlated, a model splits the credit between them, so *both* look moderately
+unimportant — and removing $k=50$ at once can drop both, when keeping either one alone would have
+been fine. Removing fewer per round lets the survivor's importance rise before the next cut. This is
+the same correlated-feature pathology that §22 shows for Lasso and §23 fixes with Elastic Net; it
+recurs throughout the lecture.
+
+### 14.3 Is RFE a wrapper or an embedded method?
 
 **Genuinely both, and noticing that is a good sign.** The deck places it under wrappers, and that's
 defensible — it wraps a full model-training loop and evaluates repeatedly. But it uses the model's
@@ -1310,7 +1313,7 @@ performance without opening the model up.
 **The honest classification: RFE is a wrapper *loop* around an embedded *ranking*.** If asked, say
 that — the taxonomy is a teaching device, and methods that sit between categories are normal.
 
-### 14.3 SVM-RFE, and why squared weights
+### 14.4 SVM-RFE, and why squared weights
 
 The slide's example is **SVM-RFE** (Guyon, Weston, Barnhill & Vapnik, 2002), still a standard method
 in gene selection.
@@ -1409,11 +1412,48 @@ pipe = make_pipeline(SelectKBest(f_classif, k=20), model)
 scores = cross_val_score(pipe, X, y, cv=5)          # honest
 ```
 
-**How badly does it matter?** Enough to invent results from nothing. Generate $X$ as pure random noise
-with $p = 10{,}000$ and $y$ as a random coin flip. Select the 20 features most correlated with $y$
-across the full dataset, then cross-validate. **You will get accuracy well above chance** — because
-with 10,000 noise features, some will correlate with $y$ by luck, and you chose them using the very
-labels you are about to validate against. The signal is entirely manufactured by the selection step.
+### 🧪 Worked example — how badly does it matter?
+
+Enough to invent results from nothing. Generate $X$ as $n = 100$ samples of pure random noise across
+$p = 10{,}000$ features, and $y$ as an independent random coin flip — by construction there is **no
+relationship whatsoever** between them. Select the top $k = 20$ features by correlation with $y$
+**using the full dataset**, then 5-fold cross-validate a logistic regression on just those 20 — versus
+doing the same selection honestly, refit inside each fold:
+
+```python
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.pipeline import make_pipeline
+
+rng = np.random.RandomState(0)
+X = rng.randn(100, 10_000)
+y = rng.randint(0, 2, size=100)
+cv = StratifiedKFold(5, shuffle=True, random_state=0)
+
+# ❌ WRONG — select on the full data first
+X_sel = SelectKBest(f_classif, k=20).fit(X, y).transform(X)
+wrong = cross_val_score(LogisticRegression(max_iter=1000), X_sel, y, cv=cv)
+
+# ✅ RIGHT — selection refit inside every fold
+pipe = make_pipeline(SelectKBest(f_classif, k=20), LogisticRegression(max_iter=1000))
+right = cross_val_score(pipe, X, y, cv=cv)
+
+print(wrong.mean(), right.mean())
+```
+
+$$\text{leaky pipeline: } \mathbf{90\%} \text{ accuracy} \qquad\qquad \text{honest pipeline: } \mathbf{51\%} \text{ accuracy (chance)}$$
+
+On data that is, by construction, **pure noise** — the labels are coin flips, independent of every
+feature — the leaky pipeline reports **90% accuracy**, while the honest one correctly reports **51%**,
+indistinguishable from the 50% you'd expect from guessing. With 10,000 noise columns, some will
+correlate with $y$ by luck alone, and choosing them using the very labels you are about to validate
+against manufactures a result that looks like a working model and is nothing.
+
+⚠️ *These exact numbers are from one run with a fixed random seed, so you can reproduce them; the size*
+*of the gap will move around with $n$, $p$, and $k$, but the direction — leaky accuracy far above*
+*chance, honest accuracy at chance — is the reliable part.*
 
 This is the feature-selection version of the same error as evaluating on your training set, and it is
 the single most common way a published-looking result turns out to be nothing. **`Pipeline` exists
@@ -1584,7 +1624,7 @@ deck doesn't mention it: **correlation between features** detects redundancy.
 
 If $r(x_1, x_2) = 0.98$, they carry nearly the same information. Keeping both wastes a dimension,
 destabilises linear-model coefficients (near-singular $X^\top X$ — see §21's motivation), and splits
-importance scores between them so both look unimportant (the §14.1 pathology again).
+importance scores between them so both look unimportant (the §14.2 pathology again).
 
 **The standard recipe:** compute the $p \times p$ correlation matrix; for each pair above 0.95, drop
 one. ⚠️ This is $\mathcal{O}(p^2)$ in both memory and time, so at $p = 50{,}000$ the matrix alone is
@@ -2410,7 +2450,7 @@ $\mathcal{O}(p)$ **predictions** — much cheaper than $\mathcal{O}(p)$ *retrain
 > so **both look unimportant** even though the pair is essential. Gini splits the credit between them,
 > with the same result. **Neither metric will tell you a correlated pair matters.** The fix is to
 > permute correlated features *as a group*, or to cluster features by correlation first. This is the
-> third appearance of the correlated-features pathology (after §14.1 and §22.3), and its recurrence is
+> third appearance of the correlated-features pathology (after §14.2 and §22.3), and its recurrence is
 > itself the lesson: **correlated features break almost every importance measure.**
 
 ```python
@@ -2898,6 +2938,38 @@ print(-np.diff(lam))                  # [5.1 1.7 1.05 0.15 0.05 0.05 0.05 0.02 0
 > Use the scree plot to *understand* your data — it's the direct test of the manifold hypothesis
 > (§7.2) — and use cross-validation to *choose* $k$.
 
+### 🧪 Worked example — "99.5% of the variance" that hides the only useful direction
+
+§7.2 called this PCA's single most dangerous failure mode; here it is with actual eigenvalues, so you
+can see exactly how a reassuring cumulative-variance number and a useless model coexist. (The
+covariance below is constructed to be diagonal on purpose, so the eigendecomposition is trivial by
+inspection — this is an illustrative example, not data from the deck.)
+
+Three uncorrelated features with covariance matrix
+
+$$\Sigma = \begin{bmatrix} 100 & 0 & 0 \\ 0 & 100 & 0 \\ 0 & 0 & 1 \end{bmatrix}$$
+
+Because $\Sigma$ is already diagonal, its eigenvalues are just the diagonal entries —
+$\lambda_1 = 100,\ \lambda_2 = 100,\ \lambda_3 = 1$ — with eigenvectors the standard basis vectors
+$e_1, e_2, e_3$ (§28's $\Sigma v = \lambda v$ is satisfied immediately: $\Sigma e_1 = (100,0,0) =
+100\,e_1$, and likewise for the other two). Say $x_1$ and $x_2$ are irrelevant noise — a sensor's
+thermal drift — and the target is **exactly** $y = \mathrm{sign}(x_3)$: the low-variance feature
+determines the label perfectly and the two high-variance ones carry nothing about it.
+
+**Run PCA and keep the top 2 of 3 components.** Cumulative variance explained:
+
+$$\frac{\lambda_1 + \lambda_2}{\lambda_1+\lambda_2+\lambda_3} = \frac{100+100}{201} = \mathbf{99.5\%}$$
+
+A number that would make anyone confident. But because $\Sigma$ was already diagonal, the two
+components you kept *are* $x_1$ and $x_2$ — **exactly the two features with no relationship to $y$.**
+The discarded third component, carrying only 0.5% of the variance, was the *only* one that mattered. A
+classifier trained on the 2 retained components does no better than guessing; a classifier trained on
+the 1 discarded component gets $y$ exactly right.
+
+**The number to sit with: 99.5% of the variance kept, 0% of the signal kept.** That gap is exactly what
+"a high explained-variance ratio is not evidence you kept the useful part" means in numbers, and it is
+why the fix is the one above — sweep $k$ and choose by downstream CV, not by the scree plot alone.
+
 > ⚠️ **Standardise before PCA when features are on different scales.** PCA maximises variance, and
 > variance is scale-dependent (§16's `height_m` vs `height_mm` example). A feature measured in
 > millimetres will dominate PC1 purely by unit choice. Standardising first means you're running PCA on
@@ -3015,7 +3087,7 @@ Embedded methods *are* the model and cost about one fit. **You pay for knowledge
 embedded methods are the practical default because they sit at the good corner of that trade.
 
 **And one pathology recurs in every family, which is why it's worth naming:** correlated features.
-They make forward selection's rankings unstable (§14.1), make Lasso pick arbitrarily among equals
+They make RFE's importance rankings unstable (§14.2), make Lasso pick arbitrarily among equals
 (§22.3), and make *both* tree importance measures under-report a pair that matters (§26.2). Elastic
 Net's grouping effect (§23) is the cleanest fix, and its proof is three lines — L2 is strictly convex,
 so it breaks the tie that L1 is indifferent to.
@@ -3217,22 +3289,18 @@ neither original feature — which is precisely why you need extraction rather t
 <details>
 <summary><b>8. (Medium–hard)</b> How is PCA actually implemented, and why not just eigendecompose the covariance?</summary>
 
-**PCA is computed as an SVD of the centered data matrix, not an eigendecomposition of $\Sigma$.**
+Before reading on, try re-deriving the connection yourself: substitute $X = USV^\top$ into
+$\Sigma = \tfrac1n X^\top X$ and simplify using $U^\top U = I$. §29.3 has the full one-line derivation
+and the complete "three reasons" table (memory, conditioning, truncation cost) if you want to check
+against it — the summary below is the version you'd actually say out loud.
 
-**The connection, derived in one line.** If $X = USV^\top$ then
-
-$$\Sigma = \tfrac1n X^\top X = \tfrac1n VS^\top U^\top U S V^\top = V\!\left(\tfrac{S^2}{n}\right)\!V^\top$$
-
-using $U^\top U = I$. Matching against $\Sigma = V\Lambda V^\top$: **the $V$ from the SVD of $X$ is
-exactly the eigenvector matrix of $\Sigma$, and $\lambda_i = s_i^2/n$.**
-
-**Three reasons to prefer the SVD route:**
-1. **You never form $\Sigma$.** At $p = 100{,}000$ it's $10^{10}$ entries — 40 GB in float32.
-2. **Conditioning.** Forming $X^\top X$ **squares the condition number**, costing you roughly half
-   your significant digits — and it hits the *small* eigenvalues hardest, which are exactly the ones
-   near the noise floor where you're deciding what to keep.
-3. **Truncation is cheap.** Randomised/Lanczos methods get the top $k$ in $\mathcal{O}(npk)$ instead of
-   $\mathcal{O}(p^3)$.
+**The answer in one breath:** PCA is computed as an **SVD of the centered data matrix**, not an
+eigendecomposition of $\Sigma$. $X = USV^\top$ gives $\Sigma = V(S^2/n)V^\top$ directly, so the SVD's
+$V$ *is* $\Sigma$'s eigenvector matrix and $\lambda_i = s_i^2/n$ — and computing it that way means you
+never form the $p\times p$ covariance matrix (40 GB at $p=100{,}000$), never square the condition
+number the way forming $X^\top X$ does (which hits the small eigenvalues hardest — exactly the ones
+you're deciding whether to keep), and can get just the top $k$ components in $\mathcal{O}(npk)$ instead
+of a full $\mathcal{O}(p^3)$ eigendecomposition.
 
 **The tell you've used it:** mention `svd_solver='auto'` switching to a randomised solver on large
 inputs, and that `TruncatedSVD` is *not* `PCA` because it deliberately skips centering (for sparse
@@ -3326,7 +3394,8 @@ high-variance directions, on the assumption that variance = signal. But:
 
 - **The target may depend on a low-variance direction.** A sensor drift of small amplitude that
   predicts failure sits in a direction PCA discards — and PCA will report 95% variance explained while
-  having deleted the only thing you cared about.
+  having deleted the only thing you cared about. §30.1 works this exact scenario with real eigenvalues
+  (99.5% of the variance kept, 0% of the signal), if you want the numbers to point at.
 - **95% is an arbitrary threshold.** Nothing makes it correct. On a flat spectrum it will return
   $k = 200$ without complaining.
 - **Variance is scale-dependent.** If features weren't standardised, "95% of the variance" may mean
@@ -3348,40 +3417,19 @@ maximum spread. Different objective, and it's the right one here.
 <details>
 <summary><b>12. (Hard)</b> Derive why Elastic Net selects correlated features as a group.</summary>
 
-**Setup.** Let $x_1$ and $x_2$ be perfectly correlated and jointly predictive, so any split with
-$\beta_1 + \beta_2 = c$ (both positive) fits the data identically.
+Work the three steps yourself before checking: (1) for a perfectly correlated pair $x_1,x_2$, show
+every split with $\beta_1+\beta_2=c$ gives Lasso an identical penalty; (2) minimise $\beta_1^2+\beta_2^2$
+subject to the same constraint via Lagrange multipliers; (3) compare the L1 and L2 penalties at the
+all-or-nothing split versus the even one. §23's worked example has this in full with the numeric
+check at $c=2$, and **D3** below is the compact whiteboard version — use either as your answer key.
 
-**Step 1 — Lasso is exactly indifferent.** For all such splits,
-
-$$\|\beta\|_1 = \beta_1 + \beta_2 = c$$
-
-Identical penalty, identical fit ⇒ the optimum is a whole line segment, not a point. Coordinate descent
-lands on a vertex, so you get $(c, 0)$ or $(0, c)$ **by numerical accident** — and the choice flips
-across bootstrap samples.
-
-**Step 2 — L2 strictly prefers the even split.** Minimise $\beta_1^2 + \beta_2^2$ subject to
-$\beta_1 + \beta_2 = c$. Lagrange: $2\beta_1 = \mu$, $2\beta_2 = \mu$, hence
-
-$$\beta_1 = \beta_2 = c/2$$
-
-**Step 3 — compare the penalties.**
-
-| Split | L1 | L2 |
-|---|---|---|
-| $(c, 0)$ | $c$ | $c^2$ |
-| $(c/2, c/2)$ | $c$ | $c^2/2$ ✅ **half** |
-
-**L1 cannot distinguish them. L2 prefers sharing, by a factor of two.** So adding *any* L2 breaks the
-tie toward keeping correlated features together — and the solution becomes unique.
-
-**The general theorem behind it:** L2 is **strictly convex**, so it has a unique minimiser on any
-convex set. L1 is merely convex, so it can be flat along a face — which is exactly where Lasso's
-non-uniqueness lives. Adding a strictly convex term to a convex one makes the whole objective strictly
-convex, hence uniquely solved. **Sparsity comes from L1's corners; stability comes from L2's strict
-convexity; Elastic Net gets both because it has both.**
-
-**Add the second motivation** if there's room: **Lasso can select at most $n$ features**, a hard
-structural limit. Elastic Net has no such cap — which is decisive in $p \gg n$ settings.
+**The one-line summary, to say out loud:** L1 gives every split of a correlated pair the *same*
+penalty ($\|\beta\|_1 = c$ regardless), so Lasso is indifferent and lands on an arbitrary vertex — but
+L2 is **strictly convex** and strictly prefers the even split ($c^2/2$ versus $c^2$, exactly half), so
+adding *any* L2 breaks that tie toward keeping the group together. **Sparsity comes from L1's corners;
+stability comes from L2's strict convexity; Elastic Net gets both because it has both.** Worth adding
+if there's room: this is also why Lasso alone can select at most $n$ features while Elastic Net has no
+such cap — decisive in $p \gg n$ settings.
 </details>
 
 ### Depth probes
@@ -3504,7 +3552,7 @@ degrades a specific corridor is not shippable.
   nightmare. Bootstrap the selection and prefer consistently-chosen features.
 - **Drift** — a carrier changes its network and the selected features stop being predictive. Monitor
   feature distributions, not only the metric.
-- **The correlated-group trap** at every stage, per §14.1, §22.3 and §26.2.
+- **The correlated-group trap** at every stage, per §14.2, §22.3 and §26.2.
 
 **What I'd ship.** V1: the pipeline above, targeting ~40 features, temporal CV, quantile loss,
 per-lane monitoring, and the feature list version-controlled and diffed on every retrain. Explicitly
@@ -3660,7 +3708,7 @@ as a feature-selection method.
 **RFE** removing 25 per round from 500 to 15: $\lceil (500-15)/25 \rceil = \lceil 19.4 \rceil = \mathbf{20}$ fits.
 
 **370× cheaper.** ⚠️ At 25 removed per round the granularity is coarse, and correlated pairs can both
-be dropped in one cut when either alone would have been kept (§14.1).
+be dropped in one cut when either alone would have been kept (§14.2).
 
 **7.** Total $= 6.0 + 2.5 + 0.8 + 0.4 + 0.2 + 0.1 = 10.0$ — conveniently.
 
@@ -3854,8 +3902,8 @@ nearly every slide, so items 1–9 are the lecture's own references — unusuall
 | **Source** | `output/Lecture_07 - Module 3 Dimensionality Reduction Part 1` — 94 raw frames, **40 distinct slide states** (33 content + 7 dividers) |
 | **Runtime** | 57:33 · instructor not named on screen |
 | **Sections** | 31, across three acts (I: the curse §1–§5 · II: why and how to select §6–§26 · III: the linear algebra behind PCA §27–§31) |
-| **Worked examples** | 13, every one carried to a final number |
-| **Derivations** | Ball-in-cube volume ratio at four dimensions · **distance concentration from first principles** (mean $0.41\sqrt d$, spread constant at 0.24) · the $(1-2\varepsilon)^d$ surface argument · why $p \gg n$ guarantees a perfect fit · forward-selection and RFE cost formulas · Pearson $= 0$ on a parabola, exactly · MI $= 1.522$ bits on the same data · a χ² test to 19.20 · Ridge's $(X^\top X + \lambda I)^{-1}$ invertibility · **Elastic Net's grouping effect in three lines** · $v^\top\Sigma v = \frac1n\|Xv\|^2$ ⇒ PSD ⇒ PCA is an eigenproblem · $\Sigma = V(S^2/n)V^\top$ from the SVD · max-variance ≡ min-reconstruction-error |
+| **Worked examples** | 15, every one carried to a final number |
+| **Derivations** | Ball-in-cube volume ratio at four dimensions · **distance concentration from first principles** (mean $0.41\sqrt d$, spread constant at 0.24) · the $(1-2\varepsilon)^d$ surface argument · why $p \gg n$ guarantees a perfect fit · forward-selection and RFE cost formulas · Pearson $= 0$ on a parabola, exactly · MI $= 1.522$ bits on the same data · a χ² test to 19.20 · Ridge's $(X^\top X + \lambda I)^{-1}$ invertibility · **Elastic Net's grouping effect in three lines** · $v^\top\Sigma v = \frac1n\|Xv\|^2$ ⇒ PSD ⇒ PCA is an eigenproblem · $\Sigma = V(S^2/n)V^\top$ from the SVD · max-variance ≡ min-reconstruction-error · filter-selection leakage manufacturing 90% accuracy from pure noise (real run, seeded) · a diagonal covariance where PCA keeps 99.5% of the variance and 0% of the signal |
 | **Interactive blocks** | 4 |
 | **Interview questions** | 12 with model answers (3 combining concepts), 9 depth probes, 3 whiteboard derivations, 1 applied scenario, 4 Leadership Principles |
 | **Cross-references** | To [Deep Neural Networks Part 1](../Deep%20Neural%20Networks/deep-neural-networks-01.md) (XOR and the perceptron), [Part 2](../Deep%20Neural%20Networks/deep-neural-networks-02.md) (L1 vs L2 gradients, flat minima, overfitting) and [Part 3](../Deep%20Neural%20Networks/deep-neural-networks-03.md) ($0.9^{100}$ as the same arithmetic) |

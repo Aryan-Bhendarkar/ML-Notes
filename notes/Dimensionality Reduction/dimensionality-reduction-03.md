@@ -60,7 +60,7 @@ dividers, title, outline, and two closing slides).
 > **Three interactive demos were captured at multiple slider settings**, and the notes reproduce real
 > numbers from each rather than describing them: the linear-autoencoder-as-PCA rank slider (§9), the
 > denoising-autoencoder noise slider (§13), and (implicitly, via the deck's own worked numbers) the
-> VQ-VAE and latent-diffusion compression figures (§21, §26).
+> VQ-VAE and latent-diffusion compression figures (§26, §30).
 >
 > The instructor is **Ravi Sankar Adepu** — named in the webcam tile throughout.
 
@@ -89,7 +89,7 @@ flowchart TD
     class AE,VAE,LORA,MRL k
 ```
 
-If you are revising under time pressure: **§8–§10 (why a linear autoencoder *is* PCA), §22–§24
+If you are revising under time pressure: **§5.1 & §9 (why a linear autoencoder *is* PCA), §22–§23
 (the VAE's reparameterisation trick and ELBO), and §31–§32 (LoRA's low-rank update)** are the interview
 core — they are the three "explain the mechanism, not just the name" questions this content is most
 likely to produce.
@@ -139,7 +139,7 @@ add nonlinearity" — so if that theorem isn't solid, reread Part 2 §13 first.
 non-negative via Jensen, and showed $H(P,Q) = H(P) + \mathrm{KL}(P\|Q)$. Two of this lecture's
 sections use KL directly: the sparse autoencoder's activation penalty (§17) and the VAE's ELBO (§23),
 and **[Part 2 §24's](dimensionality-reduction-02.md) forward-vs-reverse asymmetry is exactly why VAEs
-have a known failure mode** (§25).
+have a known failure mode** (§23.1).
 
 ### Prerequisite 3 — Bernoulli distributions
 
@@ -359,7 +359,7 @@ flowchart TD
 | $k$ | "K" | Bottleneck (latent) dimension | — |
 
 **Note the slide's own honesty: "Limitations: Non generative, Latent dimension?"** Both limitations get
-their own section later — non-generative is fixed by the VAE (§19–§25); "what latent dimension?" is
+their own section later — non-generative is fixed by the VAE (§19–§23); "what latent dimension?" is
 never fully answered for a plain autoencoder (it's a hyperparameter you guess and tune), and is the
 exact problem Matryoshka Representation Learning (§36–§39) eventually solves properly, by making it a
 runtime choice instead of a training-time commitment.
@@ -757,7 +757,7 @@ has none.
 **Translated into what actually happens during training:** the encoder is free to leave parts of the
 prior's mass "unclaimed" — it doesn't have to spread every possible input's encoding to cover the
 entire $N(0,I)$ ball — but it is *heavily* penalised if it places an input's distribution somewhere the
-prior assigns near-zero density. **This is the mechanism behind posterior collapse** (§25): because
+prior assigns near-zero density. **This is the mechanism behind posterior collapse**: because
 zero-forcing lets $q$ retreat to a small, safe region of the prior without penalty, the encoder can
 (especially with a powerful decoder) learn to ignore parts of the latent space almost entirely, using
 only a fraction of $z$'s capacity.
@@ -1704,6 +1704,12 @@ against raw variance, which is precisely why it beats post-hoc PCA on the identi
 
 ### Core questions
 
+Answer each one out loud, from memory, before opening it. Questions 1–9 rehearse a single mechanism
+already fully taught earlier in this file — each answer below closes with a pointer back to where it
+was first derived, so treat the collapsed text as the checking key, not new material. Questions 10–12
+are marked (Hard) because they force you to combine two sections that were never connected for you
+directly — those are worth reading in full even after you've got the pieces separately.
+
 <details>
 <summary><b>1. (Easy)</b> What is an autoencoder, and how does it relate to PCA?</summary>
 
@@ -1721,6 +1727,8 @@ outperforms PCA because more parameters" — neither is true for the linear case
 thing that lets it surpass PCA, specifically by letting the learned bottleneck fit **curved**
 manifolds — the Swiss-roll case PCA structurally cannot handle, because PCA can only ever find a flat
 subspace.
+
+*Full derivation and quiz: §5.1, §9.*
 </details>
 
 <details>
@@ -1739,6 +1747,8 @@ output is garbage.
 **The fix, in one sentence:** encode each input as a *distribution* rather than a point, and explicitly
 regularise every one of those distributions toward a shared, simple prior (typically $N(0,I)$) with a
 KL penalty. That's the entire structural difference a VAE adds.
+
+*Full derivation: §19–20.*
 </details>
 
 <details>
@@ -1766,6 +1776,8 @@ of $\mu$ and $\sigma$. Backprop flows through it exactly as through any other la
 **Why it's necessary rather than a nicety:** without it, there is no way to train the encoder's $\mu$
 and $\sigma$ outputs at all via gradient descent — the sampling step would be an impassable wall between
 the loss and those parameters.
+
+*Full derivation: §22.1.*
 </details>
 
 <details>
@@ -1789,6 +1801,8 @@ latent space well-covered.
 
 **$\beta$-VAE makes this an explicit dial:** replace the KL term with $\beta \cdot D_{KL}$; larger
 $\beta$ trades reconstruction sharpness for a smoother, more prior-like latent space.
+
+*Full derivation: §23.2.*
 </details>
 
 <details>
@@ -1815,6 +1829,8 @@ This isn't an incidental empirical finding — it follows directly from the dire
 why understanding forward-vs-reverse KL (as derived in
 [Part 2 §24](dimensionality-reduction-02.md)) lets you *predict* this failure mode rather than just
 recite it.
+
+*Full derivation: §23.1.*
 </details>
 
 <details>
@@ -1843,6 +1859,8 @@ making the approximation locally reasonable.
 **Why go discrete at all:** a discrete grid of codebook indices is exactly the token format a
 Transformer expects, letting an image be modelled as a sequence-generation problem — precisely what
 DALL-E and Jukebox do.
+
+*Full derivation: §26, §26.1, §26.2.*
 </details>
 
 <details>
@@ -1870,6 +1888,8 @@ the real reason self-attention becomes usable inside the diffusion network at al
 (the KL regularisation from question 4/5) — the diffusion trajectory wanders through *every*
 intermediate point during its hundreds of steps, not just points seen during VAE training, so a latent
 space with AE-style gaps would break the process.
+
+*Full derivation: §29.2, §30.*
 </details>
 
 <details>
@@ -1899,6 +1919,8 @@ purely to break that symmetry.
 **Why it's cheap at inference too:** $BA$ can simply be added into $W$ once training finishes, so a
 LoRA-adapted model has **no extra inference latency or extra parameters** compared to the original —
 only a tiny, swappable adapter needs to be stored per task.
+
+*Full derivation: §31–§32.*
 </details>
 
 <details>
@@ -1921,6 +1943,8 @@ reproduces, and DoRA's decoupling closes that gap — a pure magnitude change no
 **Result and caveat:** consistently beats LoRA at equal parameter budget on the tasks it was evaluated
 on, with the same zero-inference-cost property (it also merges back into $W$). It's an empirical
 finding about how full fine-tuning behaves, not a mathematical guarantee that transfers to every task.
+
+*Full derivation: §35.1–§35.2.*
 </details>
 
 <details>
@@ -2048,7 +2072,14 @@ constraints this scenario doesn't specify.
 
 ### Whiteboard-ready derivations
 
-**D1 — the linear-autoencoder-is-PCA theorem, stated precisely.**
+These three results were each already derived in full in the main body (§5.1/§9, §22.1, and
+§32.2–§32.3 respectively). Reproduce each one cold, on paper, before opening it — that's what "whiteboard-ready"
+means. Each answer below is the same content from its primary section, compressed to the block you'd actually
+write on a whiteboard.
+
+<details>
+<summary><b>D1 — derive the linear-autoencoder-is-PCA theorem</b> (full teaching: §5.1, §9)</summary>
+
 ```
 Linear AE:   z = Vx  (encoder, k x D)      x̂ = Uz = UVx  (decoder, D x k)
 Loss:        L(x, x̂) = ||x − x̂||²  =  ||x − UVx||²
@@ -2063,7 +2094,11 @@ Claim (Baldi & Hornik, 1989): at the global optimum of this loss,
   flat subspace) is to introduce nonlinear activations between layers.
 ```
 
-**D2 — the reparameterisation trick.**
+</details>
+
+<details>
+<summary><b>D2 — derive the reparameterisation trick</b> (full teaching: §22.1)</summary>
+
 ```
 want:  backprop through z ~ N(μ, σ²)          ← no ∂z/∂μ, ∂z/∂σ exist (stochastic node)
 
@@ -2077,7 +2112,11 @@ now:    ∂z/∂μ = 1          ∂z/∂σ = ε            ← both exist; z is 
                                                     (with ε as a fixed input)
 ```
 
-**D3 — LoRA's parameter count and the B=0 justification, in one block.**
+</details>
+
+<details>
+<summary><b>D3 — derive LoRA's parameter count and the B=0 justification</b> (full teaching: §32.2–§32.3)</summary>
+
 ```
 full fine-tune:  d × k parameters                    (e.g. 4096×4096 = 16.78M)
 LoRA:            B(d×r) + A(r×k) = r(d+k) parameters  (e.g. 8×(4096+4096) = 65,536)
@@ -2092,6 +2131,8 @@ if BOTH were 0:  ∂L/∂A involves a factor of B = 0  ⇒  ∂L/∂A = 0
                  ∂L/∂B involves a factor of A = 0  ⇒  ∂L/∂B = 0
                  ⇒ NOTHING would ever start learning
 ```
+
+</details>
 
 ### Applied scenario — building an in-house image-search feature for the catalogue
 
@@ -2196,7 +2237,7 @@ decision.
 | **Matryoshka Representation Learning (MRL)** | Trains one embedding such that every prefix $z_{1:m}$ is independently a valid, high-quality embedding. Same loss, applied to nested slices, averaged. Beats post-hoc PCA because it's task-aware. Kusupati et al. (2022). §36–§39 |
 | **Monosemantic feature** | A single interpretable concept represented by one unit — the goal sparse autoencoders pursue for LLM interpretability, as a countermeasure to polysemanticity. §17.3 |
 | **Polysemanticity** | A single neuron in a trained network firing for several unrelated concepts, due to superposition — more concepts than dimensions. The problem sparse autoencoders address. §17.3 |
-| **Posterior collapse** | A VAE's known failure mode: the encoder ignores part of the latent space's capacity, exploiting reverse KL's zero-forcing property to pay no penalty for leaving prior-mass "uncovered." §23.1, §25 |
+| **Posterior collapse** | A VAE's known failure mode: the encoder ignores part of the latent space's capacity, exploiting reverse KL's zero-forcing property to pay no penalty for leaving prior-mass "uncovered." §23.1 |
 | **QLoRA** | Quantises the frozen base model to 4-bit (NF4) while keeping LoRA adapters at higher precision — reduces the *base model's* memory footprint, complementary to (not competing with) DoRA. §35 |
 | **Reparameterisation trick** | Rewriting $z\sim N(\mu,\sigma^2)$ as $z = \mu + \sigma\odot\epsilon$, $\epsilon\sim N(0,I)$, making the sample a differentiable, deterministic function of $\mu,\sigma$. Enables backprop through a VAE's stochastic bottleneck. §22 |
 | **Reverse KL** (in the VAE's ELBO) | $\mathrm{KL}(q(z|x)\|p(z))$ — expectation under $q$. Mode-seeking, zero-forcing (per [Part 2 §24](dimensionality-reduction-02.md)); the mechanism behind posterior collapse. §23.1 |

@@ -277,21 +277,10 @@ genuinely curved data needs something else, and t-SNE and UMAP replace "preserve
 **"preserve neighbourhood probabilities"** — turning dimensionality reduction into a
 distribution-matching problem solved by minimising KL divergence.
 
-### The whole lecture in one diagram
-
-```mermaid
-flowchart TD
-    Q["<b>8.5 billion Netflix entries, 100M observed</b><br/><small>do 8.5B numbers describe taste? winning model: k = 50–200 · §1</small>"]
-    Q --> SVD["<b>§2–7 SVD</b> · X = UΣVᵀ = Σᵢ σᵢ uᵢ vᵢᵀ<br/><small>a sum of rank-1 pieces, ordered by σ · SVD ⟷ eigendecomposition of a symmetric matrix<br/>power iteration + deflation · truncate to k ⇒ Eckart–Young: provably the best rank-k · read the σ plot · LSI: singular vectors ARE topics</small>"]
-    SVD --> C["<b>Centre the data</b>"]
-    SVD --> P["<b>Don't observe it all</b>"]
-    SVD --> N["<b>Abandon linearity</b>"]
-    C --> PCA["<b>§8–15 PCA</b> = SVD of centred data<br/><small>rotation keeps total variance fixed (5947.5) · Iris 4-D → 2-D (95.8%) · eigenfaces: k=1 avg face, k=20 identity ⇒ a denoiser<br/>PCA is a linear autoencoder · Swiss roll ✗ · Kernel PCA ✓</small>"]
-    P --> MF["<b>§16–20 MF / NMF</b><br/><small>R ≈ PQᵀ, fit only the observed cells · NMF: X ≈ WH, W,H ≥ 0 ⇒ parts, not wholes ⇒ topic modelling (6 topics from real reviews)</small>"]
-    N --> TS["<b>§21–28 t-SNE / UMAP</b><br/><small>Gaussian in high-D, Student-t in low-D ⇒ crowding fixed · KL(P‖Q) ≥ 0, asymmetric · forward = covering, reverse = seeking<br/>perplexity 5–50 · UMAP: fuzzy graph · PCA → t-SNE → UMAP</small>"]
-    classDef k fill:#1E3025,stroke:#4FA073,color:#EDE6D7
-    class SVD,PCA k
-```
+This is the same four-way branch drawn in the diagram under [How to read this
+document](#how-to-read-this-document) above — SVD, then centre / observe-partially / abandon-linearity.
+The fully annotated version, filled in with every number this lecture actually produces, closes the
+file in [Putting it together](#putting-it-together).
 
 ---
 
@@ -657,6 +646,19 @@ $[\sigma^2(1-\sqrt\gamma)^2,\ \sigma^2(1+\sqrt\gamma)^2]$.**
 That upper endpoint is a **principled noise threshold**: singular values below it are consistent with
 pure noise; those above it are not. So instead of squinting for an elbow, you can ask *"is
 $\sigma_i^2$ above the Marchenko–Pastur edge?"* and get a defensible answer.
+
+### 🧪 Put a number on the edge (illustrative — not from the deck)
+
+The formula is abstract until you plug in a shape. Take a matrix with $m = 25$ features, $n = 100$
+samples, and unit-variance noise ($\sigma^2 = 1$) — so $\gamma = m/n = 0.25$:
+
+$$\text{edge} = \sigma^2(1+\sqrt\gamma)^2 = 1\times(1+0.5)^2 = 1.5^2 = \mathbf{2.25}$$
+
+**Any eigenvalue of $\frac1n X^\top X$ above 2.25 is evidence of real structure; anything below it is
+indistinguishable from noise at this shape.** Widen the matrix — say $\gamma = 1$ (a square matrix) —
+and the edge rises to $(1+1)^2 = \mathbf{4}$: with more features relative to samples, pure noise alone
+can produce larger eigenvalues by chance, so the bar for "real" has to rise too. That $\gamma$-dependence
+is the whole reason the threshold needs a law behind it rather than a fixed cutoff.
 
 > ⚠️ Two caveats worth flagging. The law is **asymptotic**, so it's a good guide at $m, n$ in the
 > hundreds and unreliable at $m, n \approx 20$. And it assumes i.i.d. entries — real "noise" is often
@@ -2574,18 +2576,16 @@ the same problem), and NMF pays that price on purpose to buy readability.
 <details>
 <summary><b>4. (Medium)</b> Why is KL divergence asymmetric, and does the direction matter?</summary>
 
-**It's asymmetric because the expectation is taken under a different distribution in each direction.**
+**It's asymmetric because the expectation is taken under a different distribution in each direction —
+forward covers, reverse seeks.** (Full mechanism, worked from the expectation subscript: §24.1.)
 
 $$\mathrm{KL}(P\|Q) = \mathbb{E}_{x\sim P}\!\left[\log\tfrac{P}{Q}\right] \qquad \mathrm{KL}(Q\|P) = \mathbb{E}_{x\sim Q}\!\left[\log\tfrac{Q}{P}\right]$$
 
-**Forward KL$(P\|Q)$ — mode-covering / zero-avoiding.** The average runs over places where $P$ has
-mass. Where $P > 0$ and $Q \to 0$, the term $P\log(P/Q) \to \infty$. **So $Q$ cannot be near-zero
-anywhere $P$ is positive — it must cover every mode**, and with a unimodal $Q$ against a bimodal $P$ it
-goes wide and puts its own peak in the empty valley between them.
+**Forward $(P\|Q)$ — mode-covering / zero-avoiding.** $Q$ can't be near-zero anywhere $P$ has mass, so
+a unimodal $Q$ fit to a bimodal $P$ goes wide and puts its own peak in the valley between the modes.
 
-**Reverse KL$(Q\|P)$ — mode-seeking / zero-forcing.** The average runs over $Q$. Where $Q = 0$ the
-whole term vanishes, so **$Q$ can ignore an entire mode of $P$ for free** — it contracts onto one mode
-and stays strictly inside $P$'s support.
+**Reverse $(Q\|P)$ — mode-seeking / zero-forcing.** $Q$ can ignore an entire mode of $P$ for free, so
+it contracts onto one mode and stays strictly inside $P$'s support.
 
 **Yes, it matters, and here's the evidence:**
 
@@ -2604,28 +2604,16 @@ And add: **it's a divergence, not a distance.** It fails symmetry *and* the tria
 <details>
 <summary><b>5. (Medium)</b> Why does t-SNE use a Student-t in low dimensions but a Gaussian in high dimensions?</summary>
 
-**To solve the crowding problem.**
+**To solve the crowding problem.** (Full mechanism and the Gaussian-vs-Student-t tail table: §22.1.)
 
-**The problem.** Volume within radius $r$ grows as $r^d$, so in high dimensions a point can have very
-many neighbours all at roughly the same moderate distance. In 2-D the ring at that radius has room for
-only a handful. If both distributions were Gaussian, all those moderate-distance points would be
-crushed inward and the map would collapse into an undifferentiated blob — which is what the original
-SNE did.
+**In one pass:** volume within radius $r$ grows as $r^d$, so a high-D point can have far more
+moderate-distance neighbours than a 2-D map has room for. Forcing them into a Gaussian's exponentially
+thin tail crushes them inward into an undifferentiated blob — which is what the original SNE (2002)
+did. The Student-t's tail decays **polynomially** instead, $\propto(1+r^2)^{-1}$, so points that are
+only moderately similar can sit far apart in the map without the loss objecting to it — which frees the
+room the crowding problem was eating and lets genuine clusters separate.
 
-**The fix.** The Student-t ($\nu = 1$, i.e. Cauchy) decays **polynomially**, $\propto (1+r^2)^{-1}$,
-versus the Gaussian's **exponential** $e^{-r^2}$.
-
-| Low-D distance | Gaussian | Student-t |
-|---|---|---|
-| 2 | 0.0183 | 0.200 |
-| 5 | $1.4\times10^{-11}$ | 0.0385 |
-| 10 | $3.7\times10^{-44}$ | 0.00990 |
-
-**To produce the same similarity value, the Student-t permits a vastly larger distance** — so
-moderately-similar points can be placed far apart without the loss objecting, freeing the space the
-crowding problem was consuming and letting genuine clusters separate.
-
-**That heavy tail is the "t" in t-SNE** — the single change from SNE (2002) that made the method work.
+**That heavy tail is the "t" in t-SNE** — the single change from SNE that made the method work.
 </details>
 
 <details>
@@ -2779,17 +2767,11 @@ PCA is the wrong tool regardless of $N$.
 <details>
 <summary><b>11. (Hard — combines two concepts)</b> Derive the relationship between cross-entropy and KL divergence, and explain why it matters for classification.</summary>
 
-**The derivation is three lines:**
-
-$$H(P,Q) = -\sum_x P(x)\log Q(x) = -\sum_x P(x)\log\left[\frac{Q(x)}{P(x)}P(x)\right]$$
-
-$$= -\sum_x P(x)\log\frac{Q(x)}{P(x)} - \sum_x P(x)\log P(x) = \mathrm{KL}(P\|Q) + H(P)$$
+**The three-line derivation and the coding reading are §23.1 / §23.2** — reproduce
+$H(P,Q) = -\sum P\log Q = \mathrm{KL}(P\|Q) + H(P)$ on paper (or check it against Whiteboard
+derivation D2 later in this section) before reading on. The result:
 
 $$\boxed{H(P,Q) = H(P) + \mathrm{KL}(P\|Q)}$$
-
-**The coding reading, which makes it concrete:** cross-entropy is the bits needed to encode samples
-from $P$ using a code built for $Q$. Entropy is the bits needed using the *best* code for $P$. **KL is
-exactly the excess** — the waste from using the wrong code.
 
 **Why it matters for classification.** What you actually want to minimise is the KL divergence between
 your predicted distribution and the truth. But $H(P)$ — the entropy of the *labels* — **does not depend
@@ -2865,7 +2847,15 @@ and treating the picture as a result rather than as a hypothesis to test.
 
 ### Whiteboard-ready derivations
 
-**D1 — SVD ↔ eigendecomposition, and why PCA is computed by SVD.**
+These three results were each derived in full in the main body. Reproduce each one on paper from
+scratch — box the final line — before opening the check.
+
+**D1 — SVD ↔ eigendecomposition, and why PCA is computed by SVD.** Start from $X = U\Sigma V^\top$ and
+show $X^\top X v_i = \sigma_i^2 v_i$ and $XX^\top u_i = \sigma_i^2 u_i$. (Full walk-through: §2.2.)
+
+<details>
+<summary>Check your derivation</summary>
+
 ```
 X = U Σ Vᵀ
 
@@ -2879,7 +2869,14 @@ XXᵀ = U Σ Vᵀ V Σᵀ Uᵀ                = U Σ² Uᵀ
   the small σ you're deciding about. Hence sklearn's PCA runs an SVD.
 ```
 
-**D2 — Cross-entropy = entropy + KL.**
+</details>
+
+**D2 — Cross-entropy = entropy + KL.** Start from $H(P,Q) = -\sum P\log Q$ and reach
+$H(P,Q) = H(P) + \mathrm{KL}(P\|Q)$ in three lines. (Full walk-through: §23.1.)
+
+<details>
+<summary>Check your derivation</summary>
+
 ```
 H(P,Q) = −Σ P log Q
        = −Σ P log[ (Q/P) · P ]
@@ -2891,7 +2888,15 @@ H(P) does not depend on the model ⇒ min cross-entropy ≡ min KL
 one-hot labels ⇒ H(P) = 0        ⇒ cross-entropy = KL exactly
 ```
 
-**D3 — Forward vs reverse KL, and hence t-SNE's behaviour.**
+</details>
+
+**D3 — Forward vs reverse KL, and hence t-SNE's behaviour.** Starting from the two expectation
+definitions, show why forward KL is mode-covering and reverse KL is mode-seeking, then say which one
+t-SNE minimises and what that implies about inter-cluster distances. (Full walk-through: §24.1.)
+
+<details>
+<summary>Check your derivation</summary>
+
 ```
 KL(P‖Q) = E_{x∼P}[log P/Q]        KL(Q‖P) = E_{x∼Q}[log Q/P]
           ▲ average under P                  ▲ average under Q
@@ -2905,6 +2910,8 @@ t-SNE uses FORWARD ⇒ p_ij large forces q_ij large   (local preserved)
                    ⇒ p_ij ≈ 0 costs nothing anywhere (global unconstrained)
                    ⇒ inter-cluster distances in a t-SNE plot are MEANINGLESS
 ```
+
+</details>
 
 ### Applied scenario — a visual-similarity search index for the catalogue
 
