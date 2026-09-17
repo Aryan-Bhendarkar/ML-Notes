@@ -140,7 +140,7 @@ $$\begin{bmatrix} 0.5 & -0.3 \\ 0.8 & 0.1\end{bmatrix}\begin{bmatrix}1.0 \\ 2.0\
 = \begin{bmatrix} 0.5(1.0) + (-0.3)(2.0) \\ 0.8(1.0) + 0.1(2.0)\end{bmatrix}
 = \begin{bmatrix} 0.5 - 0.6 \\ 0.8 + 0.2\end{bmatrix} = \begin{bmatrix} -0.1 \\ 1.0\end{bmatrix}$$
 
-(That is the actual first step of §9's worked example — you have already done part of it.)
+(That is the actual first step of §10's worked example — you have already done part of it.)
 
 **The shape rule, which is the whole game:**
 
@@ -3019,6 +3019,8 @@ Ranked easy → hard. Questions 8–12 require combining two concepts.
 <details>
 <summary><b>1.</b> Why do neural networks need activation functions?</summary>
 
+*(Full derivation: §4–§5.)*
+
 Because without them, depth does nothing.
 
 A linear layer computes $W\mathbf{x} + \mathbf{b}$. Stack three and you get
@@ -3038,6 +3040,8 @@ just to the best *linear* model.
 
 <details>
 <summary><b>2.</b> Why did ReLU replace sigmoid in hidden layers?</summary>
+
+*(Full derivation: §6.1, §7.1.)*
 
 Mainly the gradient, secondarily the cost.
 
@@ -3059,6 +3063,8 @@ so a little gradient always survives.
 
 <details>
 <summary><b>3.</b> Explain backpropagation.</summary>
+
+*(Full derivation: §15. Also D2 in Whiteboard-ready derivations, below.)*
 
 It's the chain rule applied to the computational graph, arranged so no work is repeated.
 
@@ -3083,6 +3089,8 @@ roughly **270,000× faster**. That's the difference between the field existing a
 
 <details>
 <summary><b>4.</b> Why is cross-entropy preferred over MSE for classification?</summary>
+
+*(Full derivation: §13.3. Also D1 in Whiteboard-ready derivations, below.)*
 
 Because of what happens to the gradient when the model is confidently wrong.
 
@@ -3112,6 +3120,8 @@ when the error is largest.
 <details>
 <summary><b>5.</b> What's the difference between Adam and AdamW?</summary>
 
+*(Full derivation: §21.)*
+
 Where the weight decay is applied relative to the adaptive denominator.
 
 **Adam + L2** folds $\lambda\theta$ into the gradient, so it goes *through* the division:
@@ -3135,6 +3145,8 @@ prefer the former.
 <details>
 <summary><b>6.</b> What does batch norm do, and why does it behave differently at train and eval time?</summary>
 
+*(Full derivation: §24.)*
+
 For each feature it subtracts the mini-batch mean and divides by the batch standard deviation, then
 applies a **learned** scale $\gamma$ and shift $\beta$:
 $\hat x = \frac{x-\mu_B}{\sqrt{\sigma_B^2+\epsilon}}$, $y = \gamma\hat x + \beta$.
@@ -3157,6 +3169,8 @@ gives noisy, batch-dependent validation numbers.
 
 <details>
 <summary><b>7.</b> Your loss goes to NaN after a few hundred steps. Walk me through it.</summary>
+
+*(Full derivation: §17.2.)*
 
 Almost always exploding gradients. The chain is: gradient norm reaches ~$10^{30}$ → the update
 $\eta\cdot g$ is astronomically large → weights become huge or `inf` (float32 overflows above
@@ -3372,13 +3386,20 @@ The follow-ups that come after a good first answer.
 
 ### Whiteboard-ready derivations
 
-The three to produce cold, in order of how often they come up.
+The three to produce cold, in order of how often they come up. Each was already derived in full in
+the main body — the point here is not to read the derivation again, it's to **reproduce it yourself,
+on paper or a whiteboard, against the clock**, then open the block to check every step.
 
 #### D1 — Cross-entropy's gradient is $\hat y - y$
 
-*Ninety seconds. The most-asked derivation in deep learning interviews.*
+*Ninety seconds. The most-asked derivation in deep learning interviews. Full derivation: §13.3.*
 
-**Setup.** $z$ = logit, $\hat y = \sigma(z)$, $L = -[y\log\hat y + (1-y)\log(1-\hat y)]$.
+Setup: $z$ = logit, $\hat y = \sigma(z)$, $L = -[y\log\hat y + (1-y)\log(1-\hat y)]$. Derive
+$\partial L/\partial z$ for both CE and MSE, show which factor cancels and which doesn't, then state
+the punchline you'd say out loud in an interview.
+
+<details>
+<summary>Check your derivation against §13.3</summary>
 
 **Step 1 — differentiate the loss w.r.t. the prediction.**
 $$\frac{\partial L}{\partial \hat y} = -\frac{y}{\hat y} + \frac{1-y}{1-\hat y}
@@ -3396,9 +3417,18 @@ $2(\hat y-y)\sigma'(z)$ and the $\sigma'$ survives — so at $\hat y = 0.01$ wit
 −0.99 and MSE sends −0.0196, a 50× difference, and it gets worse the more wrong the model is. That's
 why CE is the classification default."*
 
+</details>
+
 #### D2 — The backprop recurrence
 
-*Two minutes. The one that separates people who've read about backprop from people who understand it.*
+*Two minutes. The one that separates people who've read about backprop from people who understand
+it. Full derivation: §15.3–§15.4.*
+
+Define the error signal $\delta^l$, derive the recurrence relating $\delta^l$ to $\delta^{l+1}$, then
+derive both weight-gradient formulas from it.
+
+<details>
+<summary>Check your derivation against §15.3–§15.4</summary>
 
 **Step 1 — define.** $\delta^l = \dfrac{\partial L}{\partial z^l}$.
 
@@ -3417,9 +3447,16 @@ values left to right; backward, $W^\top$ routes blame right to left through the 
 with the same weights. And the weight gradient is (how wrong this layer was) × (what it received),
 which is why a dead neuron's weights never update and why input scale matters so much."*
 
+</details>
+
 #### D3 — Vanishing gradients, quantified
 
-*Sixty seconds. Usually a warm-up, and easy to make impressive.*
+*Sixty seconds. Usually a warm-up, and easy to make impressive. Full derivation: §17.1.*
+
+Derive the sigmoid's maximum gradient, then chain it across 50 layers to an actual number.
+
+<details>
+<summary>Check your derivation against §17.1</summary>
 
 $$\sigma'(z) = \sigma(z)(1-\sigma(z)), \qquad \max_s\, s(1-s) \text{ at } s = \tfrac12 \;\Rightarrow\; \sigma' \le 0.25$$
 
@@ -3432,6 +3469,8 @@ $$\log_{10}(0.25^{50}) = 50 \times (-0.602) = -30.1 \quad\Longrightarrow\quad 0.
 moves. ReLU's derivative is exactly 1, and $1^{50} = 1$. That single change is why depth became
 possible. Residual connections do the same job differently: $\partial(F(x)+x)/\partial x = \partial F/\partial x + 1$,
 and that +1 guarantees a path with factor 1 no matter what $F$ does."*
+
+</details>
 
 ---
 
@@ -3726,7 +3765,7 @@ Ranked by importance. Difficulty: `intro` · `solid` · `hard`.
 ### Tier 2 — the primary sources
 
 5. **Krizhevsky, Sutskever & Hinton, "ImageNet Classification with Deep CNNs" (NeurIPS 2012)** · `solid`
-   AlexNet — the paper §0 is about. Worth reading for how much of it is engineering: the ReLU choice,
+   AlexNet — the paper "The big picture" (above) is about. Worth reading for how much of it is engineering: the ReLU choice,
    the dual-GPU split, dropout, and the augmentation scheme. The "~6× faster than sigmoid" figure is
    from §4.1 here.
 

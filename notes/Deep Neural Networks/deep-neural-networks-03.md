@@ -819,6 +819,43 @@ are not, so it should be on by default in every recurrent model you train.**
 But note what it cannot do: clipping only ever *reduces* a norm. A gradient of $10^{-12}$ passes
 through untouched.
 
+### 🧪 Worked example — what clipping actually does to the numbers
+
+> The numbers below are **illustrative** (constructed to show the mechanism), not read off the deck or
+> the demo — the demo's gradient-norm cell was never captured (§24.7).
+
+Suppose a backward pass on a small RNN produces exactly two gradient values (in reality every
+parameter tensor concatenated into one long vector), $g = [3.0, -1.0]$, and you have set
+`max_norm=1.0`.
+
+**Step 1 — the global norm** treats every gradient tensor as one long vector and takes its $L_2$
+length: $\|g\| = \sqrt{3.0^2 + (-1.0)^2} = \sqrt{10} \approx 3.162$.
+
+**Step 2 — the rule.** If $\|g\| > \text{max\_norm}$, rescale every gradient by the same factor
+$\dfrac{\text{max\_norm}}{\|g\|}$, so the new norm is exactly `max_norm` and the *direction* of the
+gradient (the relative size of every parameter's update to every other's) is unchanged — only the
+magnitude shrinks. Here:
+
+$$\text{scale} = \min\!\left(1,\ \frac{1.0}{3.162}\right) = 0.316 \qquad g_{\text{clipped}} = 0.316 \times [3.0, -1.0] = [0.949,\ -0.316]$$
+
+Verify the result is back at the cap: $\|g_{\text{clipped}}\| = \sqrt{0.949^2 + 0.316^2} =
+\mathbf{1.000}$ ✓ — and the ratio $0.949 : -0.316$ is still exactly $3 : -1$, so the *direction* of the
+step is untouched.
+
+If instead $\|g\| = 0.6$ (below `max_norm`), the `min(1, …)` evaluates to 1 and nothing happens — the
+gradient passes through unmodified. That `min(1, …)` is the entire algorithm: it can only shrink,
+never grow, a gradient.
+
+```python
+import torch
+g = torch.tensor([3.0, -1.0])                  # every gradient tensor, concatenated
+max_norm = 1.0
+total_norm = g.norm()                          # tensor(3.1623)
+scale = min(1.0, max_norm / total_norm.item())
+print(scale, g * scale)
+# 0.3162  tensor([0.9487, -0.3162])   <- norm is now exactly 1.0, direction unchanged
+```
+
 ### 7.2 Truncated BPTT
 
 Instead of backpropagating through all $T$ steps, backpropagate through only the last $k$ (say 20),
@@ -2565,6 +2602,26 @@ cheapness:
    inputs and labels are not aligned. **This is the highest-value debugging technique in deep learning
    and it takes 30 seconds.**
 
+   > 🧪 **What that trace actually looks like — illustrative.** The deck never runs this specific test
+   > on camera, so the numbers below are **constructed**, not captured — but they use the demo's own
+   > model (§24.3's 259-parameter classifier) and starting loss ($\ln 3 = 1.10$, §24.4) as the anchor,
+   > so the shape is the realistic one:
+   >
+   > | Step | Loss on the same 32 examples | Accuracy on those 32 |
+   > |---|---|---|
+   > | 0 | 1.10 ($\approx \ln 3$, as expected) | ~33% |
+   > | 25 | 0.41 | 84% |
+   > | 50 | 0.09 | 97% |
+   > | 100 | 0.01 | 100% |
+   > | 200 | 0.001 | 100% |
+   >
+   > A **healthy** pipeline looks like this: loss falls to near-zero on data it has now seen 200 times,
+   > because 259 parameters have more than enough capacity to memorise 32 points. If instead the loss
+   > *plateaus* around 1.0 no matter how long you train — on only 32 examples, which a model this size
+   > should be able to memorise trivially — the model isn't failing to generalise, it's failing to fit
+   > at all, which means the wiring (labels, indexing, the loss function) is broken, not the
+   > architecture or the learning rate.
+
 **Loss is NaN.** Almost always exploding gradients (§7.1, [Part 2 §3](deep-neural-networks-02.md)),
 especially in RNNs. In order:
 
@@ -2575,9 +2632,10 @@ especially in RNNs. In order:
    parameter in one step, because `nan` propagates through every operation it touches.
 
 **Train high, test low.** This is [Part 2 §9–§13](deep-neural-networks-02.md)'s entire chapter. The
-slide's three remedies map to it directly: dropout is §11, reducing model size is capacity control, more
-data is the only cure that is always correct. Add **early stopping** (§12) — the deck omits it here, but
-it is the cheapest of the four and should be your first move.
+slide's three remedies map to it directly: dropout is [Part 2 §11](deep-neural-networks-02.md), reducing
+model size is capacity control, more data is the only cure that is always correct. Add **early stopping**
+([Part 2 §12](deep-neural-networks-02.md)) — the deck omits it here, but it is the cheapest of the four
+and should be your first move.
 
 ### 25.2 The debugging order the deck implies
 
@@ -2730,74 +2788,78 @@ limitation at sentence scale, and it is what motivated attention.
 <details>
 <summary><b>3. (Medium)</b> Derive why RNN gradients vanish.</summary>
 
-Chain-rule the loss back to an early hidden state:
+This is §6's derivation (also Whiteboard Derivation 1, above), cold: chain-rule $\partial L/\partial
+h_k$ back through $T-k$ steps, differentiate one link of $h_t = \tanh(W_{hh}h_{t-1}+W_{xh}x_t+b)$,
+identify which two quantities multiply together at each step and why both are essentially always below
+1, then state the spectral-radius criterion and the headline number. Write it out on paper before you
+expand the answer.
 
-$$\frac{\partial L}{\partial h_k} = \frac{\partial L}{\partial h_T}\prod_{t=k+1}^{T}\frac{\partial h_t}{\partial h_{t-1}}$$
-
-Each link comes from $h_t = \tanh(W_{hh}h_{t-1} + W_{xh}x_t + b)$, giving
-$\frac{\partial h_t}{\partial h_{t-1}} = \mathrm{diag}(1 - h_t^2)\,W_{hh}$ — the $\tanh$ derivative
-(diagonal, since it's elementwise) times the inner derivative. So:
+<details>
+<summary>Check your derivation against the full version</summary>
 
 $$\frac{\partial L}{\partial h_k} = \frac{\partial L}{\partial h_T}\prod_{t=k+1}^{T} W_{hh}^\top\cdot\mathrm{diag}(1 - h_t^2)$$
 
 **Both factors are essentially always below 1:** $\mathrm{diag}(1-h_t^2) < 1$ whenever $h_t \ne 0$ (and
 it *must* be non-zero for the state to carry information), and $\|W_{hh}\|$ is typically modest at
 initialization. So the product decays exponentially: if the per-step factor is 0.9,
-$0.9^{100} = 2.65\times10^{-5}$.
-
-Formally, the criterion is the **spectral radius**: $\rho(W_{hh}) < 1$ → vanish, $> 1$ → explode.
+$0.9^{100} = 2.65\times10^{-5}$. Formally, the criterion is the **spectral radius**:
+$\rho(W_{hh}) < 1$ → vanish, $> 1$ → explode.
 
 **The point that shows depth:** *the better the RNN is at its job, the worse this gets.* A hidden state
 carrying strong signal has $|h_t|$ near 1, so $1 - h_t^2$ is near 0 — a network that is successfully
 storing information is a network whose gradients die fastest.
+
+Full step-by-step reasoning and the symbol table: §6.
+</details>
 </details>
 
 <details>
 <summary><b>4. (Medium)</b> How exactly does LSTM fix it? Show the derivative.</summary>
 
-**The one-sentence answer: the cell state update is additive, so the gradient along it is a product of
-learned scalars rather than a product of weight matrices and tanh derivatives.**
+This is §13.1's derivation (also Whiteboard Derivation 2, above), cold: differentiate the cell-state
+update $C_t = f_t\odot C_{t-1}+i_t\odot\tilde{C}_t$ with respect to $C_{t-1}$, chain it across $T$
+steps, and contrast the resulting product against Q3's. State the one-sentence answer and the two
+numbers before you expand.
 
-$$C_t = f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \implies \frac{\partial C_t}{\partial C_{t-1}} = f_t$$
+<details>
+<summary>Check your derivation against the full version</summary>
 
-$$\therefore \quad \frac{\partial C_T}{\partial C_k} = \prod_{t=k+1}^{T} f_t$$
+$$\frac{\partial C_t}{\partial C_{t-1}} = f_t \qquad\qquad \frac{\partial C_T}{\partial C_k} = \prod_{t=k+1}^{T} f_t$$
 
-Contrast with §6's $\prod W_{hh}^\top\mathrm{diag}(1-h_t^2)$. **Two differences, and the second is the
-one that matters:**
-
-1. No matrix multiplication and no $\tanh$ derivative on this path.
-2. **$f_t$ is a learned sigmoid**, so the network can push it toward 1 whenever the task needs long
-   memory. The RNN's shrinkage is structural and unavoidable; the LSTM's is a decision.
-
-Numbers: $0.9^{100} = 2.65\times10^{-5}$ versus $0.99^{100} = 0.366$ — a **13,800×** difference.
+Contrast with Q3's $\prod W_{hh}^\top\mathrm{diag}(1-h_t^2)$. **Two differences, and the second is the
+one that matters:** (1) no matrix multiplication and no $\tanh$ derivative on this path; (2) $f_t$ is a
+**learned sigmoid**, so the network can push it toward 1 whenever the task needs long memory — the
+RNN's shrinkage is structural and unavoidable, the LSTM's is a decision. Numbers:
+$0.9^{100} = 2.65\times10^{-5}$ versus $0.99^{100} = 0.366$ — a **13,800×** difference.
 
 **Be precise about the scope:** LSTM doesn't *eliminate* vanishing gradients. The path through $h_t$
 still goes through weight matrices and $\tanh$s. It adds a **clean parallel path** through $C$, and
 gradients can take it. Same caveat as ResNet's skip connection — which is the same trick, applied to
 depth instead of time.
+
+Full derivation and the RNN-vs-LSTM comparison table: §13.1.
+</details>
 </details>
 
 <details>
 <summary><b>5. (Medium)</b> Walk me through one LSTM cell update with numbers.</summary>
 
-Start with cell state $C_{t-1} = [0.8, -0.2]$. New input arrives that should replace what dimension 0
-holds.
+This is §12's worked example, cold. Given $C_{t-1} = [0.8, -0.2]$, forget gate $f = [0.1, 0.9]$, input
+gate $i = [0.95, 0.1]$ and candidate $\tilde{C} = [0.9, 0.0]$ — compute $C_t$ by hand, then say in one
+sentence why the result required *vector* gates rather than scalar ones.
 
-**Forget:** $f = [0.1, 0.9]$ → $f \odot C_{t-1} = [0.08, -0.18]$. Dimension 0 keeps only 10% (being
-erased); dimension 1 keeps 90% (being preserved).
+<details>
+<summary>Check your arithmetic</summary>
 
-**Write:** $i = [0.95, 0.1]$, $\tilde{C} = [0.9, 0.0]$ → $i \odot \tilde{C} = [0.855, 0.0]$. Dimension 0
-gets the new content; dimension 1 gets nothing.
+$f \odot C_{t-1} = [0.08, -0.18]$, $\ i \odot \tilde{C} = [0.855, 0.0]$, so
+$C_t = \mathbf{[0.935, -0.18]}$: dimension 0 was *replaced* (erased to 10%, then written fresh),
+dimension 1 was *held* (a 10% decay, nothing added). A vanilla RNN's single
+$\tanh(W_{hh}h_{t-1}+\ldots)$ mixes every dimension into every other and cannot do this — erase one
+fact while preserving another in the same step.
 
-**Update:** $C_t = [0.08, -0.18] + [0.855, 0.0] = \mathbf{[0.935, -0.18]}$
-
-**Read the result:** dimension 0 was *replaced* (0.8 → 0.935 by way of near-total erasure and a fresh
-write); dimension 1 was *held* (−0.2 → −0.18, a 10% decay).
-
-**The point to make explicit:** this is why gates are **vectors, not scalars**. Erase and write happen
-per-dimension, independently, in a single step. A vanilla RNN cannot do this — its
-$\tanh(W_{hh}h_{t-1} + \ldots)$ mixes every dimension into every other. And if the network had learned
-$f = 1.0$ on dimension 1, it would still be exactly $-0.2$ after a thousand steps.
+Full step-by-step verification against the deck's own numbers, plus the "what if $f=1$ on dimension 1"
+extension: §12.
+</details>
 </details>
 
 <details>
@@ -3013,7 +3075,13 @@ for epoch in range(num_epochs):
 
 ### Whiteboard-ready derivations
 
-**Derivation 1 — BPTT and why it vanishes.**
+Close the file and reproduce Derivations 1 and 2 from memory on paper — they are the exact derivations
+from §6 and §13.1, compressed to whiteboard form. Say the two boxed results ($0.9^{100}=2.65\times10^{-5}$
+and $0.99^{100}=0.366$) out loud as you go; if you can't, re-read §6/§13.1 before the interview, not after.
+
+<details>
+<summary><b>Derivation 1 — BPTT and why it vanishes</b> (= §6, compressed — check your version against this)</summary>
+
 ```
 h_t = tanh(W_hh h_{t−1} + W_xh x_t + b)
 
@@ -3027,7 +3095,13 @@ each factor bounded by  ‖W_hh‖ · max(1 − h_t²)  < 1  in practice
 0.9^100 = 2.65e−5            ⇒ effective memory ≈ 44 steps
 ```
 
-**Derivation 2 — the LSTM cell state, and why it survives.**
+Full step-by-step reasoning, with the symbol table and the "why each factor is < 1" argument: §6.
+
+</details>
+
+<details>
+<summary><b>Derivation 2 — the LSTM cell state, and why it survives</b> (= §13.1, compressed — check your version against this)</summary>
+
 ```
 f_t = σ(W_f[h_{t−1}, x_t] + b_f)          "how much to ERASE"
 i_t = σ(W_i[h_{t−1}, x_t] + b_i)          "how much to WRITE"
@@ -3045,7 +3119,13 @@ h_t = o_t ⊙ tanh(C_t)
 f=1, i=0 ⇒ C_t = C_{t−1}     perfect memory (and useless — nothing enters)
 ```
 
-**Derivation 3 — the parameter counts, in one block.**
+Full derivation, with the side-by-side comparison against Derivation 1's product: §13.1.
+
+</details>
+
+**Derivation 3 — the parameter counts, in one block.** A synthesis you won't find assembled anywhere
+else in this document — RNN, GRU, LSTM and the demo's MLP, side by side, drawn from §2.3, §11.2, §15.4
+and §24.3:
 ```
 let H = hidden_size, D = input_size,  one gate block = H(H + D) + H
 
@@ -3439,7 +3519,7 @@ Ranked by importance. Difficulty markers: `intro` / `solid` / `hard`.
 | **Source** | `output/Lecture_06 - Module 2 Deep Neural Network Part 3` — 153 raw frames, **35 distinct slide states** plus ~10 min of live notebook |
 | **Runtime** | 57:25 · Rudra Singh |
 | **Sections** | 26, across six parts (A: RNN · B: LSTM/GRU · C: BiRNN · D: Seq2Seq · E: PyTorch · F: hands-on demo) |
-| **Worked examples** | 11, every one carried to a final number, plus a **complete 7-step notebook reproduced with its real printed output** |
+| **Worked examples** | 12, every one carried to a final number (including an illustrative gradient-clipping example at §7.1 and an illustrative overfit-one-batch trace at §25.1, both clearly labeled as constructed rather than captured), plus a **complete 7-step notebook reproduced with its real printed output** |
 | **Derivations** | The RNN recurrence unrolled · the BPTT product and its two shrinking factors · $\partial C_t/\partial C_{t-1} = f_t$ and $\prod f_t$ · the LSTM/GRU/RNN parameter formulas · the $\ln K$ initial-loss result · why $\mathrm{diag}(1-h_t^2) < 1$ whenever the state carries signal |
 | **Interactive blocks** | 4 |
 | **Interview questions** | 12 with model answers, 8 depth probes, 3 whiteboard derivations, 1 applied scenario, 3 LP tie-ins |

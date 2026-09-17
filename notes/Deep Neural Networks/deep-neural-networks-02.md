@@ -998,6 +998,32 @@ normalizing by it is meaningless (and produces exactly $\beta$ for every input, 
 prediction). So BatchNorm maintains an exponential moving average of $\mu$ and $\sigma^2$ during
 training and uses those frozen statistics at eval time.
 
+**The update, made concrete.** The moving average is a weighted blend, controlled by a **momentum**
+hyperparameter $m$ (PyTorch's default is $m = 0.1$):
+
+$$\text{running\_mean} \leftarrow (1-m)\cdot\text{running\_mean} + m\cdot\mu_B, \qquad \text{running\_var} \leftarrow (1-m)\cdot\text{running\_var} + m\cdot\sigma_B^2$$
+
+PyTorch initializes `running_mean = 0` and `running_var = 1`. This claim — that a "frozen" model can
+still silently drift, which the warning below, §25's transfer-learning trap and two interview questions
+later all lean on — is worth seeing in numbers once, not just asserting.
+
+🧪 **Worked example (illustrative)** — reuse §6.1's batch $[2,4,6,8]$, so $\mu_B = 5$, $\sigma_B^2 = 5$,
+and suppose three consecutive batches happen to land on exactly those same statistics, at the default
+$m = 0.1$:
+
+| After batch | running_mean | running_var |
+|---|---|---|
+| 0 (init) | $0$ | $1$ |
+| 1 | $0.9(0) + 0.1(5) = 0.5$ | $0.9(1) + 0.1(5) = 1.4$ |
+| 2 | $0.9(0.5) + 0.1(5) = 0.95$ | $0.9(1.4) + 0.1(5) = 1.76$ |
+| 3 | $0.9(0.95) + 0.1(5) = 1.355$ | $0.9(1.76) + 0.1(5) = 2.084$ |
+
+**Read what this shows.** Even with perfectly consistent batch statistics, `running_mean` is still only
+$1.355$ after three batches — nowhere near the true $5$ it's converging toward. At the default momentum,
+full convergence takes dozens of batches. So a "frozen" backbone whose running stats keep updating (see
+§25) isn't jumping to new statistics — it's slowly blending old and new into something that matches
+neither, for a long time. That's the mechanism behind the bug, not just its symptom.
+
 | | Training mode (`model.train()`) | Eval mode (`model.eval()`) |
 |---|---|---|
 | $\mu, \sigma$ come from | The current mini-batch | Stored running averages |
@@ -1269,7 +1295,26 @@ noise acts as mild regularization.
 ## 9. What does "generalize" mean?
 
 Chapters 1–3 got you *to* a minimum, fast and reliably. Chapter 4 asks a different question: **is it
-a good minimum?** The slide's framing [slide 32, 14:41]:
+a good minimum?** — where "good" means *the model works on data it hasn't seen*, not just on the
+training set.
+
+### 📚 Background the deck assumed — overfitting, in one paragraph
+
+> **Overfitting** — when a model learns patterns that exist in the training data but not in the world.
+>
+> *In everyday words:* a student who memorizes the answers to last year's exam paper. Perfect score on
+> that paper, no ability on this year's.
+>
+> *Concretely:* fit a degree-15 polynomial through 16 noisy data points and it passes through every
+> one exactly — training error 0 — while wiggling absurdly between them. Ask it for a value at a new
+> $x$ and it returns nonsense.
+>
+> *Why it exists:* any model with more capacity than the pattern requires will spend the surplus
+> capacity fitting the noise. Module 1's bias–variance decomposition (see
+> [`../Supervised Learning/supervised-learning-01.md`](../Supervised%20Learning/supervised-learning-01.md))
+> is the formal treatment; this chapter is four practical countermeasures.
+
+With that in hand, the slide's framing [slide 32, 14:41]:
 
 > *"The loss landscape has many minima. Not all are equal."*
 
@@ -1334,22 +1379,6 @@ enough to answer the interview question.
 > 👉 **See also.** [`Dimensionality Reduction`](../Dimensionality%20Reduction/) reuses this exact
 > flat-vs-sharp and overfitting framing when discussing regularized latent-space training — worth
 > revisiting this section if that later material feels like it's repeating an argument you've seen.
-
-### 📚 Background the deck assumed — overfitting, in one paragraph
-
-> **Overfitting** — when a model learns patterns that exist in the training data but not in the world.
->
-> *In everyday words:* a student who memorizes the answers to last year's exam paper. Perfect score on
-> that paper, no ability on this year's.
->
-> *Concretely:* fit a degree-15 polynomial through 16 noisy data points and it passes through every
-> one exactly — training error 0 — while wiggling absurdly between them. Ask it for a value at a new
-> $x$ and it returns nonsense.
->
-> *Why it exists:* any model with more capacity than the pattern requires will spend the surplus
-> capacity fitting the noise. Module 1's bias–variance decomposition (see
-> [`../Supervised Learning/supervised-learning-01.md`](../Supervised%20Learning/supervised-learning-01.md))
-> is the formal treatment; this chapter is four practical countermeasures.
 
 ---
 
@@ -2015,7 +2044,7 @@ $$O = \left\lfloor\frac{4 + 0 - 2}{2}\right\rfloor + 1 = 1 + 1 = \mathbf{2} \qua
 
 $$O = \left\lfloor\frac{W + 2 - 3}{1}\right\rfloor + 1 = W - 1 + 1 = \mathbf{W} \quad \checkmark \text{ (output size = input size, exactly as claimed)}$$
 
-**4. The §22 conv block's `MaxPool2d(kernel_size=2, stride=2)`,** applied to a 224×224 input:
+**4. The §21 conv block's `MaxPool2d(kernel_size=2, stride=2)`,** applied to a 224×224 input:
 
 $$O = \left\lfloor\frac{224 - 2}{2}\right\rfloor + 1 = 111 + 1 = \mathbf{112} \quad \checkmark \text{ ("spatial dims halve")}$$
 
@@ -2138,7 +2167,7 @@ Verified in §16's worked case 3. The two caveats in that sentence both matter:
 chooses which information to keep); max-pooling is *fixed*. Recent architectures increasingly replace
 pooling with stride-2 convolutions for exactly that reason (Springenberg et al.'s "All Convolutional
 Net" is the early argument, and ResNet already downsamples with strided convs rather than pooling
-inside its stages). The deck teaches both, which reflects the canonical block in §22.
+inside its stages). The deck teaches both, which reflects the canonical block in §21.
 
 ---
 
@@ -2298,7 +2327,7 @@ Which is exactly the slide's boxed claim:
 *Parameters* (per single-channel filter): three 3×3 kernels are $3 \times 9 = \mathbf{27}$ weights; one
 7×7 kernel is $\mathbf{49}$. The stack uses **45% fewer weights** for the same reach.
 
-With realistic channel counts $C$ in and $C$ out — this is the form the §23 slide quotes:
+With realistic channel counts $C$ in and $C$ out — this is the form the §22 slide quotes:
 
 $$\text{three } 3{\times}3: \quad 3 \times (3 \times 3 \times C \times C) = \mathbf{27C^2}$$
 $$\text{one } 7{\times}7: \quad 7 \times 7 \times C \times C = \mathbf{49C^2}$$
@@ -3240,17 +3269,10 @@ neighbourhood at all (1×1 sees none).
 <details>
 <summary><b>4. (Medium)</b> Derive the factor of 2 in He initialization.</summary>
 
-The variance recurrence says the per-layer gain is $n\,\mathrm{Var}(W)$, and we want it to be 1. But
-ReLU sits between layers and attenuates the signal, so we need the linear part to over-compensate by
-exactly ReLU's attenuation factor.
-
-For $z$ zero-mean and symmetric,
-
-$$\mathbb{E}[\mathrm{ReLU}(z)^2] = \mathbb{E}[z^2 \cdot \mathbb{1}[z>0]] = \tfrac{1}{2}\mathbb{E}[z^2]$$
-
-by symmetry: $z^2$ is identically distributed on each side of zero, and $z > 0$ half the time. So ReLU
-halves the second moment. To keep the second moment constant across layers we need
-$n\,\mathrm{Var}(W) = 2$, hence $\mathrm{Var}(W) = 2/n_{\text{in}}$. $\blacksquare$
+Do the full derivation yourself first — §2.2 has it step by step if you get stuck. The shape of it: the
+per-layer gain $n\,\mathrm{Var}(W)$ must equal 1; ReLU halves the second moment
+($\mathbb{E}[\mathrm{ReLU}(z)^2] = \tfrac12\mathbb{E}[z^2]$, by the symmetry of $z$ about zero); so the
+linear part must double it, giving $n\,\mathrm{Var}(W) = 2 \Rightarrow \mathrm{Var}(W) = 2/n_{\text{in}}$.
 
 **Depth probe you should be ready for: "you said second moment, not variance — why?"** Because
 $\mathrm{ReLU}(z)$ is not zero-mean (it's non-negative), so its variance isn't its second moment. The
@@ -3262,19 +3284,12 @@ memorised the formula.
 <details>
 <summary><b>5. (Medium)</b> Why does L1 regularization produce sparse models and L2 doesn't?</summary>
 
-Compare the gradients of the penalties.
-
-L1's penalty $\lambda|w|$ has gradient $\lambda\,\mathrm{sign}(w)$ — **constant magnitude, regardless of
-$w$**. So each step subtracts a fixed absolute amount $\eta\lambda$ from $|w|$. A weight at 0.001 is
-pushed by the same amount as a weight at 10, so small weights hit zero and stop there.
-
-L2's penalty $\frac{\lambda}{2}w^2$ has gradient $\lambda w$ — **proportional to $w$**. The update
-becomes $w \leftarrow (1 - \eta\lambda)w - \eta\nabla\mathcal{L}$: a multiplicative shrinkage. Repeated
-multiplication by a number just below 1 approaches zero asymptotically and reaches it never.
-
-**Demonstrate it with numbers** (this is what makes the answer land): $w = 0.01$, $\lambda = 0.1$,
-$\eta = 0.1$, task gradient 0. L2 gives $0.01 - 0.0001 = 0.0099$; L1 gives $0.01 - 0.01 = 0$ in one
-step.
+Compare the two penalties' gradients yourself before checking §10.1–§10.2: L1's is
+$\lambda\,\mathrm{sign}(w)$ — **constant magnitude**, so each step subtracts a fixed absolute amount
+regardless of how small $w$ already is, and small weights hit exactly zero and stop. L2's is
+$\lambda w$ — **proportional to $w$**, a multiplicative shrinkage that approaches zero but reaches it
+never. §10's worked example makes it concrete: with $w=0.01,\lambda=0.1,\eta=0.1$, L1 reaches exactly
+0 in one step; L2 only reaches 0.0099.
 
 The geometric picture (the L1 ball is a diamond with corners on the axes, so the constrained optimum
 tends to land on a corner where some coordinates are exactly zero) is the same fact from the other
@@ -3284,33 +3299,23 @@ direction. Know both; lead with the gradient argument, because it's faster to st
 <details>
 <summary><b>6. (Medium)</b> Derive the 1/(1-p) scaling in dropout. Why is it applied at training time rather than test time?</summary>
 
-**The derivation.** We want dropout not to change the expected magnitude of what the next layer
-receives. With $\hat{a}_i = \frac{a_i \cdot \mathrm{Bernoulli}(1-p)}{1-p}$:
+Derive it yourself first — §11.1 has the three-line version if you get stuck. The shape of it: demand
+$\mathbb{E}[\hat{a}_i] = a_i$ where $\hat{a}_i = \frac{a_i \cdot \mathrm{Bernoulli}(1-p)}{1-p}$, and
+$\frac{1}{1-p}$ falls out as the unique factor that makes it hold — it isn't tuned, it's forced.
 
-$$\mathbb{E}[\hat{a}_i] = \frac{a_i}{1-p}\,\mathbb{E}[\mathrm{Bernoulli}(1-p)] = \frac{a_i}{1-p}(1-p) = a_i$$
-
-$\frac{1}{1-p}$ is the unique factor that makes this hold — it isn't tuned, it's forced.
-
-**Why at training time.** The original formulation scaled by $(1-p)$ at *test* time instead. Moving the
-correction into training ("inverted dropout") makes **inference a completely plain forward pass** — no
-scaling, no special case, no branch. That matters for deployment, for exporting to ONNX/TensorRT, and
-for making `model.eval()` a true no-op for dropout layers. Every framework does it this way now.
+**Why at training time.** The original 2014 formulation scaled by $(1-p)$ at *test* time instead.
+Moving the correction into training ("inverted dropout") makes inference a plain forward pass — no
+scaling, no special case — which is what every framework does now, and why `model.eval()` is a true
+no-op for dropout layers.
 </details>
 
 <details>
 <summary><b>7. (Medium)</b> Given a 224×224×3 input, trace the spatial dimensions through ResNet-50's stem.</summary>
 
-Using $O = \lfloor(W + 2P - K)/S\rfloor + 1$:
-
-- `conv1`: $K{=}7, S{=}2, P{=}3$ → $\lfloor(224 + 6 - 7)/2\rfloor + 1 = 111 + 1 = \mathbf{112}$
-- `maxpool`: $K{=}3, S{=}2, P{=}1$ → $\lfloor(112 + 2 - 3)/2\rfloor + 1 = 55 + 1 = \mathbf{56}$
-- `layer1` ($S{=}1$): stays **56**
-- `layer2` ($S{=}2$): $\lfloor(56 + 2 - 3)/2\rfloor + 1 = 27 + 1 = \mathbf{28}$
-- `layer3` ($S{=}2$): → $\mathbf{14}$
-- `layer4` ($S{=}2$): → $\mathbf{7}$
-
-Then global average pooling collapses 7×7 to 1×1, giving the 2048-dimensional feature vector that
-`model.fc` consumes.
+Work it out yourself with $O = \lfloor(W + 2P - K)/S\rfloor + 1$, layer by layer, then check against
+§16's worked example 6 (which verifies each step against torchvision). The sequence is
+**224 → 112 → 56 → 56 → 28 → 14 → 7**; global average pooling then collapses 7×7 to 1×1, giving the
+2048-dimensional feature vector that `model.fc` consumes.
 
 **The tell that you actually know this:** mention that the parameter count of every one of those layers
 is independent of the spatial sizes you just computed — but the *FLOPs* are not.
@@ -3401,19 +3406,11 @@ position** — a fully-connected layer over channels, with weight sharing across
 spatial work and all channel work.
 
 Its importance is that it makes **channel count cheap to change**, which lets you do expensive spatial
-work in a low-dimensional space. The bottleneck sandwich:
-
-| | Layer | Params |
-|---|---|---|
-| Naive | `Conv2d(256, 256, 3, padding=1)` | $256 \times (9\cdot256 + 1) = \mathbf{590{,}080}$ |
-| Squeeze | `Conv2d(256, 64, 1)` | $64 \times 257 = 16{,}448$ |
-| Work | `Conv2d(64, 64, 3, padding=1)` | $64 \times 577 = 36{,}928$ |
-| Expand | `Conv2d(64, 256, 1)` | $256 \times 65 = 16{,}640$ |
-| | **Bottleneck total** | **70,016** |
-
-**8.4× fewer parameters**, same 256-in/256-out interface, still a genuine 3×3 spatial operation, and
-three nonlinearities instead of one. This is ResNet-50's actual block, and it is why ResNet-50 has
-25.6M parameters while VGG-16 has 138M despite being three times deeper.
+work in a low-dimensional space. Reconstruct the bottleneck-sandwich arithmetic yourself (squeeze →
+work → expand on a 256-channel layer) before checking §24's worked example — it comes out to
+**8.4× fewer parameters** than a naive 3×3 at the same 256-in/256-out interface, still a genuine 3×3
+spatial operation, and three nonlinearities instead of one. This is ResNet-50's actual block, and it is
+why ResNet-50 has 25.6M parameters while VGG-16 has 138M despite being three times deeper.
 
 **The precision point that separates a good answer from a great one:** in the deck's simpler
 comparison (a 1×1 producing 64 channels vs a 3×3 producing 256, a 36× gap), *most of the saving is the
@@ -3465,9 +3462,11 @@ that makes transfer learning and visual-search embeddings work, and it generalis
 ### Whiteboard-ready derivations
 
 These three should be reproducible cold, with no notes. Practise until you can do them in under three
-minutes each.
+minutes each. This is the compressed, whiteboard-speed version of each — the full narrative derivation,
+with every step justified in prose, lives at the section noted under each heading; go there if a step
+doesn't make sense on its own.
 
-**Derivation 1 — the variance recurrence.**
+**Derivation 1 — the variance recurrence.** *(full derivation: §1.1, with the ReLU correction at §2.2)*
 
 ```
 one neuron:  z_i = Σ_{j=1..n} W_ij · a_j
@@ -3482,7 +3481,7 @@ set the gain to 1:   n·Var(W) = 1  ⇒  Var(W) = 1/n
 with ReLU, E[ReLU(z)²] = ½E[z²]    ⇒  Var(W) = 2/n
 ```
 
-**Derivation 2 — why skip connections save the gradient.**
+**Derivation 2 — why skip connections save the gradient.** *(full derivation: §4.4)*
 
 ```
 plain block:      y = F(x)        ⇒  ∂y/∂x = F'(x)
@@ -3496,8 +3495,9 @@ residual block:   y = F(x) + x    ⇒  ∂y/∂x = F'(x) + I
                                    ⇒ gradient reaches layer 1 undiminished
 ```
 
-**Derivation 3 — output size, receptive field, and parameter count together.** Whiteboard them as one
-block, because you will usually be asked for two of the three in the same question:
+**Derivation 3 — output size, receptive field, and parameter count together.** *(full derivations: §16,
+§20, §23)* Whiteboard them as one block, because you will usually be asked for two of the three in the
+same question:
 
 ```
 output size    O   = ⌊(W + 2P − K)/S⌋ + 1
