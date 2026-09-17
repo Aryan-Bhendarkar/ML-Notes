@@ -361,7 +361,7 @@ Features and labels are intuitive. **Hypothesis space** is the one that repays t
 >
 > *Concretely:* $\mathcal{H}$ for simple linear regression is every line $\{w_1x + w_0\}$. If the
 > true relationship is $y = x^2$, **no line is the right answer.** The best line is still wrong, and
-> that irreducible wrongness is exactly what §7 will call **bias**.
+> that irreducible wrongness is exactly what §9 will call **bias**.
 
 The three examples on the slide, made concrete in 2-D:
 
@@ -471,14 +471,17 @@ get one honest number.
 
 $$\text{train} = 7{,}000 \qquad \text{validation} = 1{,}500 \qquad \text{test} = 1{,}500$$
 
-**Is 1,500 test examples enough?** That depends on the difference you need to detect. For an accuracy
-around 90%, the standard error is
+**Is 1,500 test examples enough?** That depends on the difference you need to detect. Accuracy on $n$
+examples behaves like a sample proportion, and by the **normal approximation to the binomial** its
+sampling distribution is approximately normal with standard deviation $\sqrt{p(1-p)/n}$ — the
+**standard error (SE)**. So for an accuracy around 90%:
 
 $$\text{SE} = \sqrt{\frac{p(1-p)}{n}} = \sqrt{\frac{0.9 \times 0.1}{1500}} = \sqrt{0.00006} = 0.00775$$
 
-A 95% confidence interval is roughly $\pm 1.96 \times 0.00775 = \pm 0.0152$, i.e. **±1.5 percentage
-points**. So with 1,500 test examples you can confidently detect a 3-point improvement and cannot
-distinguish a 1-point one.
+A 95% confidence interval is roughly $\pm 1.96 \times 0.00775 = \pm 0.0152$ — **1.96** because that's
+the $z$-value spanning the central 95% of a normal distribution — i.e. **±1.5 percentage points**. So
+with 1,500 test examples you can confidently detect a 3-point improvement and cannot distinguish a
+1-point one.
 
 > ⚠️ **Turn that around before you start.** If the business cares about a 1-point improvement, you
 > need roughly $\left(\frac{1.96 \times 0.3}{0.01}\right)^2 \approx 3{,}500$ — and more like 14,000
@@ -952,7 +955,7 @@ Three things to take from it:
 ### The three practical strategies the slide names
 
 **Regularisation** — add a penalty for complexity to the objective. Reduces variance, adds a little
-bias. This is §11, and it's the main lever.
+bias. This is §13, and it's the main lever.
 
 **Cross-validation** — doesn't change bias or variance; it lets you *measure* where you are on the
 curve reliably enough to choose. Without it you cannot find the optimum, you can only guess at it.
@@ -987,17 +990,12 @@ fallback: The three-model table in §9 — Model B has zero bias and the worst t
 
 ## 10. Bias–variance: practical diagnostics
 
-Slide [raw `slide_041`, 19:50]:
+Slide [raw `slide_041`, 19:50] restates §8's high-bias/high-variance signals in slightly different
+words and adds one genuinely new instruction: **"Learning curves (error vs. training size) are the
+best diagnostic tool."**
 
-> - **High Bias (underfitting) signals:**
->   - Training accuracy is low
->   - Training and validation errors are both high and similar
->   - *Fix:* more features, more complex model, less regularization
-> - **High Variance (overfitting) signals:**
->   - Training accuracy is high, validation accuracy is much lower
->   - Large gap between train and validation performance
->   - *Fix:* more data, fewer features, more regularization, early stopping
-> - **Learning curves (error vs. training size) are the best diagnostic tool**
+You can already name the problem from §8's two-number diagnostic — here's why each fix works, and the
+tool that tells you which one you actually need.
 
 ### 📚 Learning curves — the slide's headline claim, explained
 
@@ -1636,6 +1634,51 @@ insight: Moving w rotates the boundary and moving b translates it — both requi
 fallback: The §15 worked example — z = 1.3 gives p̂ = 0.7858, which is class 1 at threshold 0.5 and class 0 at threshold 0.9.
 ```
 
+### Choosing a threshold is a business decision, not a modelling one
+
+The model outputs a probability; the **threshold** is a separate, post-hoc choice about which
+probabilities count as "positive". Training never touches it, which is exactly why it's the cheapest
+lever in the whole pipeline — changing it costs a config edit, not a retrain.
+
+**Start from the cost of being wrong, not from 0.5.** Every threshold trades **false negatives** (FN —
+missed positives) against **false positives** (FP — false alarms), and the right trade-off is set by
+how expensive each one is in the business you're actually running, not by a default.
+
+🧪 **Fraud detection.** A missed fraud (FN) might cost the full transaction value, say \$200. A false
+alarm (FP) costs an analyst's review time, say \$5. FN is roughly 40× more expensive than FP — so you
+want a **low** threshold: catch more fraud, accept many more false alarms, because each one is cheap.
+
+🧪 **Spam filtering.** A missed spam email (FN) costs a few seconds of annoyance. A false positive — a
+real email from your boss routed to spam — can cost far more. Here FP is the expensive one, so you
+want a **high** threshold: only flag when very confident.
+
+**The threshold isn't solved analytically — you sweep it on validation.** Compute precision and
+recall (or whatever your two costs translate to) at every threshold and read off the one that matches
+your cost ratio:
+
+| Threshold | Precision | Recall | Read as |
+|---|---|---|---|
+| 0.1 | 0.22 | 0.97 | catches almost everything; most flags are false alarms |
+| 0.3 | 0.41 | 0.88 | |
+| 0.5 | 0.68 | 0.71 | the default — arbitrary unless your two costs happen to be equal |
+| 0.7 | 0.85 | 0.52 | |
+| 0.9 | 0.96 | 0.24 | only the most confident flags; misses most true positives |
+
+(`sklearn.metrics.precision_recall_curve` produces exactly this table in one call.) **0.5 is not
+special.** It's the threshold that falls out of "predict the more likely class", which is only the
+right business answer when a false positive and a false negative cost the same — which is almost
+never true.
+
+**Often the right answer isn't one threshold, it's two.** Instead of a single cutoff, route by score
+into three bands: a high threshold that **auto-acts** (auto-block a transaction, auto-approve a loan),
+a middle band that goes to **human review**, and a low band that's cleared automatically. This turns a
+forced either/or into a routing decision, spends expensive human attention only where the model is
+genuinely unsure, and is how most production fraud and content-moderation systems are actually built.
+
+> 💡 **Never choose the threshold on the test set.** It's a model decision like any other
+> hyperparameter (§5) — sweep it on validation, and let the test set give you one honest number at the
+> threshold you already picked.
+
 ---
 
 ## 16. Key Takeaways — Section 5
@@ -1702,40 +1745,34 @@ else."
 <details>
 <summary><b>1. Why do you need a validation set — isn't train/test enough?</b></summary>
 
-Because every time you use a dataset to make a decision, you spend some of its ability to tell you
-the truth.
+Because every time you use a dataset to make a decision, you spend some of its ability to tell you the
+truth. With only train and test, repeatedly scoring hyperparameter variants on test and shipping the
+winner is **multiple-comparisons bias** — the winner won partly on merit and partly because it suited
+that particular test sample. §5 works the numbers (30 models → ~2 SE → roughly 2 percentage points of
+inflation); the number to remember is that the size of that inflation is about the size of the
+improvement people write documents about.
 
-With only train and test, you'd tune hyperparameters by scoring repeatedly on test. After 30 model
-variants, the winner won partly on merit and partly because it happened to suit that particular test
-sample. That's multiple-comparisons bias, and it's quantifiable: with 30 equivalent models the
-best-looking one sits roughly 2 standard errors above the truth. On 1,000 test examples at ~90%
-accuracy, one SE is about 0.95 points — so you're inflated by ~2 points purely by selection, which is
-exactly the size of improvement people write documents about.
-
-The validation set absorbs that cost so the test set stays clean. Choose everything on validation;
-touch test once, at the end, for a single honest number. On small data I'd use k-fold
-cross-validation instead of a single validation split — every example gets used for both training and
-validation, and I get an error bar for free, which matters more than the point estimate.
+The validation set absorbs that cost so the test set stays clean: choose everything on validation,
+touch test once at the end for a single honest number. On small data I'd use k-fold cross-validation
+instead of a single split — every example is used for both training and validation, and I get an
+error bar for free, which matters more than the point estimate.
 </details>
 
 <details>
 <summary><b>2. Name four ways data leakage happens and the one rule that prevents most of them.</b></summary>
 
-1. **Temporal leakage** — a feature window that extends past the prediction date. Predicting churn
-   using support tickets filed after the prediction cutoff.
-2. **A feature derived from the target** — predicting delivery lateness using an exception code that
-   only gets set because the delivery went wrong.
-3. **Preprocessing before splitting** — standardising, imputing, or fitting PCA on the full dataset,
-   so training features encode test-set statistics.
-4. **Duplicate records spanning splits** — the same listing under two IDs, so the model memorises it
-   in train and "recognises" it in test.
+Full mechanisms, symptoms, and the worked $\mu$-shift example are in §6. The four, in one line each:
 
-The rule is **split first, preprocess after** — and the way to make it stick is a `sklearn.Pipeline`,
-because someone who knows the rule will still standardise once at the top of a notebook and then run
-cross-validation underneath it, at which point every fold has already seen every other fold.
+1. **Temporal leakage** — a feature window that extends past the prediction date.
+2. **A feature derived from the target** — e.g. an exception code only set because the delivery went
+   wrong.
+3. **Preprocessing before splitting** — a fitted transform (scaler, PCA, imputer) sees the whole
+   dataset before the split.
+4. **Duplicate records spanning splits** — the model memorises in train, "recognises" in test.
 
-The master test that subsumes all four: *for every feature, at the exact moment the model runs in
-production, does this value exist yet?*
+The rule: **split first, preprocess after**, enforced structurally with a `sklearn.Pipeline` rather
+than remembered by hand. The master test that subsumes all four: *at the exact moment the model runs
+in production, does this feature's value exist yet?*
 </details>
 
 <details>
@@ -1763,137 +1800,83 @@ cross-validation in an afternoon, versus months to collect data.
 <details>
 <summary><b>4. Derive the bias–variance decomposition.</b></summary>
 
-Take the expected squared error at a fixed input, where the randomness is over which training set you
-drew. Add and subtract the mean prediction:
+Full derivation is in §9 — add and subtract $\mathbb{E}[\hat y]$, expand the square, and the cross
+term vanishes because $(\mathbb{E}[\hat y] - y)$ is constant and $\mathbb{E}[\hat y - \mathbb{E}[\hat
+y]] = 0$ by definition of the mean. Result:
 
-$$\mathbb{E}[(\hat y - y)^2] = \mathbb{E}\big[\big((\hat y - \mathbb{E}[\hat y]) + (\mathbb{E}[\hat y] - y)\big)^2\big]$$
+$$\boxed{\ \mathbb{E}[(\hat y - y)^2] = \text{Var}(\hat y) + \text{Bias}(\hat y)^2\ }$$
 
-Expand as $(A+B)^2 = A^2 + 2AB + B^2$:
-
-$$= \underbrace{\mathbb{E}[(\hat y - \mathbb{E}[\hat y])^2]}_{\text{Variance}} + 2\mathbb{E}[(\hat y - \mathbb{E}[\hat y])(\mathbb{E}[\hat y]-y)] + \underbrace{(\mathbb{E}[\hat y]-y)^2}_{\text{Bias}^2}$$
-
-The cross term dies because $(\mathbb{E}[\hat y] - y)$ is a constant — it pulls out of the
-expectation — leaving $\mathbb{E}[\hat y - \mathbb{E}[\hat y]]$, which is zero by definition of the
-mean. So $\text{MSE} = \text{Var} + \text{Bias}^2$.
-
-I'd add that this version treats $y$ as fixed. If the observed label is itself noisy,
-$y = f(x) + \varepsilon$, a third term $\sigma^2$ appears — the irreducible noise. That one matters
-practically: it's the floor you can't go below, and knowing roughly where it sits tells you when to
-stop working on the model.
+The one addition worth saying out loud: this treats $y$ as fixed. With an observed, noisy label
+$y = f(x) + \varepsilon$, a third term $\sigma^2$ (irreducible noise) appears — the floor you can't go
+below, and worth knowing roughly where it sits before promising further gains.
 </details>
 
 <details>
 <summary><b>5. Ridge vs. Lasso — why does one give exact zeros and the other never does? [combines two concepts]</b></summary>
 
-Look at the derivative of the penalty as the weight approaches zero.
+Full mechanism and worked table are in §13. Short version: ridge's penalty derivative ($2\lambda w$)
+vanishes as $w \to 0$, so its pull weakens exactly as it approaches zero and it converges
+asymptotically, never arriving. Lasso's penalty derivative ($\lambda \cdot \text{sign}(w)$) stays
+constant at $\lambda$ all the way to zero, so if the data's pull on a coefficient is weaker than
+$\lambda$, the penalty wins outright and pins it at exactly zero. Geometrically: the L1 constraint
+region is a diamond with corners on the axes (where a moving loss contour tends to make first
+contact); the L2 region is a smooth circle with no corners to land on.
 
-- **Ridge**, penalty $\lambda w^2$, derivative $2\lambda w$ → **goes to 0** as $w \to 0$. The pull
-  toward zero weakens exactly as you approach zero, so you converge asymptotically and never arrive.
-- **Lasso**, penalty $\lambda|w|$, derivative $\lambda \cdot \text{sign}(w)$ → **stays at $\lambda$**
-  all the way in. If the data's pull on that coefficient is weaker than $\lambda$, the penalty wins
-  outright and pins it at exactly zero.
-
-Made precise, with standardised features the lasso solution is soft-thresholding:
-$w = \text{sign}(w_{\text{OLS}})\max(0, |w_{\text{OLS}}| - \lambda)$. With $w_{\text{OLS}} = 0.8$ and
-$\lambda = 0.8$ it's exactly zero; ridge at $\lambda = 100$ is still at 0.0079.
-
-Geometrically it's the same fact: the L1 constraint region is a diamond whose corners sit on the
-axes, and a moving loss contour tends to touch a corner first. The L2 region is a circle, which has
-no corners, so the tangent point almost never lands on an axis.
-
-Practically I'd choose ridge when all features plausibly matter and multicollinearity is the problem
-— it shares weight between correlated features stably, and it has a closed form. Lasso when I want
-sparsity and interpretability, with the caveat that with correlated features it picks one arbitrarily
-and that choice can flip on resampling. Elastic Net when I have correlated groups and still want
-sparsity.
+Practically: ridge when all features plausibly matter and multicollinearity is the problem (shares
+weight between correlated features stably, closed form); lasso for sparsity and interpretability (but
+the choice among correlated features can flip on resampling); Elastic Net for correlated groups where
+you still want sparsity.
 </details>
 
 <details>
 <summary><b>6. Why can't you just use linear regression for a binary target? [combines two concepts]</b></summary>
 
-Three reasons, escalating.
+Full reasoning is in §15. In short, three reasons, escalating:
 
-First, the output isn't bounded — $\mathbf{w}^\top\mathbf{x}+b$ can return 3.7, which isn't a
-probability.
+- **Unbounded output** — $\mathbf{w}^\top\mathbf{x}+b$ can return 3.7, which isn't a probability.
+- **Violates homoscedasticity** — for a binary target the conditional variance is $p(1-p)$, which
+  depends on $p$, so OLS's constant-error-variance assumption fails by construction.
+- **Not robust to point position (the fatal one)** — correctly-classified points far out on the
+  x-axis still pull the fitted line, dragging the 0.5 crossing sideways and misclassifying points it
+  previously got right. That's a wrong-objective problem, not a tuning problem.
 
-Second, it violates OLS's homoscedasticity assumption by construction: for a binary target the
-conditional variance is $p(1-p)$, which depends on $p$, so the error spread is not constant.
-
-Third, and the fatal one: it's not robust to the *position* of correctly-classified points. Add
-examples far out on the x-axis, all correctly labelled 1, and OLS rotates the line to reduce their
-squared error — dragging the 0.5 crossing sideways and misclassifying points it previously got right.
-Being more confidently correct about a distant point makes the model worse. That's not a tuning
-issue, it's the wrong objective.
-
-Logistic regression fixes all three by keeping the linear part and passing it through the sigmoid,
-then training by maximum likelihood under a Bernoulli model rather than by squared error. That
-Bernoulli NLL is exactly binary cross-entropy.
+Logistic regression fixes all three: the sigmoid squashes the output to $(0,1)$, and training by
+maximum likelihood under a Bernoulli model — equivalent to binary cross-entropy — replaces squared
+error with an objective that matches the actual noise model.
 </details>
 
 <details>
 <summary><b>7. Logistic regression's boundary is linear even though the sigmoid is non-linear. Explain. [combines two concepts]</b></summary>
 
-The boundary is the set of points where the predicted probability equals the threshold. Since
-$\sigma$ is **monotonic**, $\sigma(z) = 0.5$ happens exactly when $z = 0$ — and $z = \mathbf{w}^\top
-\mathbf{x} + b = 0$ is the equation of a hyperplane.
+Full reasoning is in §15. In short: the boundary is where predicted probability equals the threshold.
+Since $\sigma$ is monotonic, $\sigma(z) = 0.5$ happens exactly when $z = 0$, and $z = \mathbf{w}^\top
+\mathbf{x} + b = 0$ is a hyperplane — the sigmoid changes *how fast* confidence grows away from the
+boundary, not *where* the boundary is, and that holds at any threshold (just a parallel hyperplane).
 
-The sigmoid changes *how fast confidence grows* as you move away from the boundary; it doesn't change
-*where* the boundary is. And this holds for any threshold, not just 0.5 — a different threshold just
-means a different constant $c$ in $z = c$, which is a parallel hyperplane.
-
-So logistic regression can only ever draw a straight boundary. To get a curved one you engineer
-non-linear features — add $x_1^2$, $x_1 x_2$ — at which point the boundary is linear in the *expanded*
-space and curved in the original one. That's the same move as the kernel trick in an SVM, just done
-explicitly rather than implicitly.
+So the boundary is always straight in the original feature space. A curved one needs engineered
+non-linear features ($x_1^2$, $x_1x_2$) — linear in the expanded space, curved in the original one,
+the same move as the kernel trick in an SVM done explicitly instead of implicitly.
 </details>
 
 <details>
 <summary><b>8. You have a fraud model. Business says "catch more fraud." What do you actually change?</b></summary>
 
-First thing, and it's free: **move the threshold**. The model outputs a score, and the class comes
-from comparing it to a cutoff I chose. Lowering it catches more fraud immediately, with no
-retraining, no new data, no code beyond a config value.
-
-But that's a trade, so I'd want the second half of the sentence before I did it. Lowering the
-threshold raises recall and lowers precision — more false alarms into the investigation queue. So
-I'd ask: what's the review team's capacity, and what does a missed fraud cost versus a false alarm?
-Those two numbers determine the threshold, and they're business inputs, not modelling ones.
-
-Then I'd sweep the threshold on validation and bring back a table — recall at each precision level —
-and let them pick the operating point. Often the right answer isn't one threshold but two: a high one
-that auto-blocks, a middle band that goes to human review, and below that nothing. That turns a
-painful either/or into a routing decision.
-
-Only if no achievable operating point is good enough would I go back to the model — and then I'd
-check the learning curve first to see whether more data or more capacity is the lever.
+The free lever: **move the threshold** (§15, "Choosing a threshold is a business decision, not a
+modelling one") — no retraining, just a config change. Sweep precision/recall on validation, weigh
+what a missed fraud costs against what a false alarm costs, and pick (or route between) two
+thresholds accordingly. Only if no achievable operating point is good enough would I go back to the
+model — and I'd check the learning curve (§10) first to see whether more data or more capacity is the
+actual lever.
 </details>
 
 <details>
 <summary><b>9. Walk me through the four OLS assumptions and what actually goes wrong. [combines two concepts]</b></summary>
 
-**Linearity** — if the true relationship is curved, the model is systematically biased and no amount
-of data fixes it. That's a pure bias problem in the bias–variance sense: the truth isn't in the
-hypothesis space. Detect it with a residuals-vs-fitted plot showing a curve; fix with polynomial or
-interaction terms, or change model family.
-
-**Independence of errors** — with correlated errors (time series, clustered data) the coefficients
-are still unbiased, but the *standard errors* are wrong, usually too small. So you believe results
-that aren't real. Detect with residuals in collection order, or Durbin–Watson; fix with time-series
-models or cluster-robust standard errors.
-
-**Homoscedasticity** — non-constant error variance. Again the estimates are fine but the uncertainty
-is understated, and OLS over-weights the noisy regions. Detect with a funnel shape in the residual
-plot; fix by transforming $y$ or using weighted least squares.
-
-**No multicollinearity** — this is the one that actually breaks the math. Near-duplicate features
-make $X^\top X$ near-singular, its inverse blows up, and coefficients become enormous with
-cancelling signs. Predictions can still be fine; coefficients are meaningless and unstable. Detect
-with VIF > 5–10; fix by dropping a feature or using ridge — and note ridge fixes it *literally*, by
-adding $\lambda I$ to the diagonal, which guarantees invertibility for any $\lambda > 0$. The
-statistical fix and the linear-algebra fix are the same fix.
-
-The efficient move is that a single residuals-vs-fitted plot checks three of the four at once — you
-want a structureless horizontal band.
+Full table (what breaks, how to detect it, the fix) is in §12. The one thing worth adding beyond that
+table: a **linearity** violation is a pure bias problem *in the bias–variance sense* — the truth isn't
+inside the hypothesis space $\mathcal{H}$, so no amount of data fixes it, only a richer model class
+does. The other three (independence, homoscedasticity, multicollinearity) leave the point estimates
+fine but break something else instead — standard errors, uncertainty, or numerical stability.
 </details>
 
 <details>
@@ -1936,7 +1919,12 @@ the thing you care about — the validation curve — directly.
 
 ### Whiteboard-ready derivations
 
-**① The normal equation.**
+**① The normal equation.** *Derive $\mathbf{w}^\star = (X^\top X)^{-1}X^\top y$ cold, and verify it
+against §12's hand-fitted line — full derivation and numeric check in §12.*
+
+<details>
+<summary>Check your answer</summary>
+
 ```
 L(w) = ‖y − Xw‖²  =  yᵀy − 2wᵀXᵀy + wᵀXᵀXw
 ∇_w L = −2Xᵀy + 2XᵀXw = 0
@@ -1949,8 +1937,14 @@ Verify on x=[1..5], y=[2,4,5,4,5]:
   w = (1/50)[1100−990, −300+330] = (1/50)[110,30] = [2.2, 0.6]
 Matches the hand fit ŷ = 2.2 + 0.6x ✓
 ```
+</details>
 
-**② The bias–variance decomposition.**
+**② The bias–variance decomposition.** *Derive $\mathbb{E}[(\hat y-y)^2] = \text{Var}(\hat y) +
+\text{Bias}(\hat y)^2$ cold, including why the cross term vanishes — full derivation in §9.*
+
+<details>
+<summary>Check your answer</summary>
+
 ```
 E[(ŷ − y)²]
   = E[((ŷ − E[ŷ]) + (E[ŷ] − y))²]                add and subtract E[ŷ]
@@ -1965,8 +1959,14 @@ Cross term:  (E[ŷ] − y) is CONSTANT → pulls out
 
 With noisy labels y = f(x) + ε:   MSE = Var + Bias² + σ²
 ```
+</details>
 
-**③ Sigmoid ⟺ log-odds, and the boundary.**
+**③ Sigmoid ⟺ log-odds, and the boundary.** *Derive that $z$ equals the log-odds, and that the
+decision boundary is a hyperplane — full derivation in §15.*
+
+<details>
+<summary>Check your answer</summary>
+
 ```
 p = σ(z) = 1/(1 + e⁻ᶻ)
   ⟹ p(1 + e⁻ᶻ) = 1
@@ -1979,6 +1979,7 @@ So:  log[ P(y=1|x) / P(y=0|x) ] = wᵀx + b
 Boundary:  p = 0.5  ⟺  z = 0  ⟺  wᵀx + b = 0   → a hyperplane
 σ is monotonic ⟹ ANY threshold gives z = c ⟹ a PARALLEL hyperplane
 ```
+</details>
 
 ### Applied scenario — churn prediction for Amazon subscriptions
 
@@ -1987,49 +1988,67 @@ is **rank customers by churn risk and hand back the top 500**, which changes the
 to **precision@500** and makes calibrated probabilities valuable (they let you compute expected value
 saved per call).
 
-**Formulation**, made explicit because §3 says this is the highest-leverage step:
-- **Population:** customers with ≥1 purchase in the last 180 days.
-- **$Y$:** 1 if zero purchases in the **next 60 days**. Sixty days because 30 over-flags seasonal
-  buyers and 180 gives the team no time to act.
-- **$X$:** purchase recency/frequency, category diversity, support-contact count, tenure, delivery
-  issues — **all windowed strictly to end on the prediction date**.
-- **$\mathcal{H}$:** regularised logistic regression first. Not because it's the most accurate, but
-  because the retention team will ask *why* a customer was flagged, and $e^{w_j}$ gives them an
-  odds-ratio answer they can act on.
+**Formulation:** as decided in §3 — population ≥1 purchase/180d, $Y$ = no purchase in the next 60d,
+$X$ windowed strictly to the prediction date, $\mathcal{H}$ = regularised logistic regression (the
+retention team needs the odds-ratio "why" behind a flag, not just a score).
 
-**Data discipline.** Temporal split, not random — train on months 1–9, validate on 10–11, test on 12
-— because in production the model only ever predicts forward. Everything fitted lives in a
-`Pipeline`. Before anything else I'd audit the feature list against the "does this exist at
-prediction time?" test; on a churn problem `cancellation_reason` and any post-cutoff support-ticket
-window are the two that always sneak in.
+**Data discipline, in more detail than §5's general version.** A temporal split here isn't just "not
+random" — it's train on months 1–9, validate on 10–11, test on month 12, then refit on a rolling
+window monthly as new data arrives, evaluating every fold the same way (train on the past, score on
+the next month), because a single train/test cut doesn't tell you whether the model degrades as the
+population and product mix drift over time. Everything fitted (scaler, any target encoding) lives
+inside a `Pipeline` refit per fold. Before anything else I'd run the "does this exist at prediction
+time?" audit from §6 against every feature; on a churn problem `cancellation_reason` and any
+support-ticket window that extends past the cutoff are the two that always sneak in, usually because
+someone joined the table on customer ID without checking dates.
 
-**Diagnosis before iteration.** Fit, then read the train/validation pair. If both errors are high and
-close, the fix is features and capacity, and collecting more history is wasted. If there's a large
-gap, I plot the learning curve to see whether more data will actually close it before proposing that
-we buy any.
+**Diagnosis before iteration.** Fit, then read the train/validation pair (§8). If both errors are high
+and close, the fix is features and capacity, and collecting more history is wasted money. If there's a
+large gap, I plot the learning curve (§10) to see whether more data will actually close it before
+proposing that we buy any.
 
-**Metric.** Precision@500 as the headline, since that's the operating point. AUC-PR as the
-threshold-free summary — not ROC-AUC, since churners are maybe 5% and ROC would flatter us
-(see [Part 2 §17](supervised-learning-02.md)). Reported as mean ± std across temporal folds, because a
-single number on one quarter is not evidence.
+**Metric choice, and why the obvious one is wrong.** Accuracy is useless here — churners are maybe 5%
+of the population, so "predict nobody churns" scores 95%. Precision@500 is the headline because
+that's the literal operating point the team works from. For a threshold-free summary I'd report
+AUC-PR, not ROC-AUC: at a 5% positive rate, ROC-AUC is flattered by the huge pool of easy true
+negatives and can look excellent while precision at any usable threshold is still poor (see
+[Part 2 §17](supervised-learning-02.md)). I'd report all of it as mean ± std across the temporal folds
+above, because a single number on one quarter is not evidence — the §5 multiple-comparisons lesson,
+applied to ongoing *monitoring* rather than one-off model *selection*.
 
-**Failure modes.**
-- **The intervention changes the label.** If the team calls a flagged customer and saves them, that
-  customer now looks like a non-churner in next month's training data — so the model learns that its
-  own high-risk signals *predict retention*. This is the nastiest failure here. Fix: hold out a
-  random control group who are never called, and train on them.
-- **Temporal drift** — a pricing change or a competitor launch shifts behaviour. Monitor the input
-  distribution and retrain on a rolling window.
-- **Proxy leakage** — if "previously flagged" ends up in the feature set, the model learns to predict
-  its own past output.
-- **Calibration drift** — the expected-value calculation depends on the probabilities being real, so
-  I'd monitor a reliability curve, not just AUC.
+**Failure modes — four, and the first is the one that actually kills programmes like this.**
 
-**What I'd ship first.** Regularised logistic regression on windowed features, temporal split, output
-as a ranked list with the top 500 per week, plus a randomised control group from day one. It's
-explainable, it's deployable in a week, and — critically — the control group is what makes it
-possible to ever measure whether the programme works. A better model added later is easy; a control
-group added later is not, because you've already contaminated the data.
+1. **The intervention changes the label — a feedback loop.** If the team calls a flagged customer and
+   successfully retains them, that customer now shows up as a *non-churner* in next month's training
+   data. The model then partly learns that its own highest-risk signals *predict retention* — because
+   every time it was confidently right, the outcome it caused erased the evidence. Left unchecked, the
+   model's apparent accuracy on future data can even go up while its actual ability to identify
+   at-risk customers quietly degrades on everyone it hasn't already "fixed". The only real fix is a
+   **randomised control group** — customers the model flags but the team is barred from calling — with
+   training and evaluation done only against how that group actually behaves. Skipping this is one of
+   the most common ways a well-built churn model becomes useless within a couple of quarters, and
+   nothing about the training loss or validation curve will ever reveal it, because the corruption is
+   in the *label*, not the fit.
+2. **Temporal drift.** A pricing change, a new competitor, or a seasonal shift moves the whole
+   population's behaviour at once. Monitor the input feature distributions directly (not just the
+   headline metric) so you catch this before the metric moves, and retrain on a rolling window rather
+   than all of history.
+3. **Proxy leakage.** If a field like "was previously flagged" or "was previously contacted" ends up
+   in the feature set, the model partly learns to predict its own past output rather than churn
+   itself — a subtler cousin of failure 1, and worth checking for even outside the control-group
+   question.
+4. **Calibration drift.** The expected-value-per-call calculation the retention team uses to
+   prioritise depends on the output probabilities being real probabilities, not just correctly
+   *ordered* ones. A model can hold its AUC while its calibration silently degrades, so I'd monitor a
+   reliability curve (predicted probability vs. observed frequency in each bucket), not just AUC or
+   precision@500.
+
+**What I'd ship first.** Regularised logistic regression on windowed features, temporal split with
+monthly refresh, output as a ranked list with the top 500 per week, plus a randomised control group
+from day one. It's explainable, it's deployable in a week, and — critically — the control group is
+what makes it possible to ever measure whether the programme works, and what protects the model from
+poisoning its own future training data. A better model added later is easy; a control group added
+later is not, because by then the data is already contaminated.
 
 ### Leadership Principles tie-in
 

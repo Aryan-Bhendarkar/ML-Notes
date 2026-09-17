@@ -339,6 +339,19 @@ The deck then lists the five losses it will teach [`slide_009`]:
 
 Cross-entropy for multi-class is taught too, making six. We take them in order.
 
+> 📚 **Background the slide assumed — why these losses have the shapes they do.** Worth knowing before
+> you meet any of them: three of the six (BCE, cross-entropy, hinge) exist for a reason that has
+> nothing to do with regression. For classification, what you *actually* want to minimise is the
+> **0/1 loss** — 1 if wrong, 0 if right, exactly the error rate. But it is piecewise constant: its
+> gradient is zero everywhere it's defined and undefined at the jump, so gradient descent cannot touch
+> it, and minimising it exactly is NP-hard in general. So every classification loss below is a
+> **surrogate** — a convex function that sits *above* the 0/1 loss and can be descended, chosen so
+> that driving the surrogate down provably drives the error rate down. (Hinge, logistic, and
+> exponential — AdaBoost's — are the three classical surrogates.) Regression losses don't need this
+> trick, because the quantity you actually want (MSE, MAE) is already differentiable — which is
+> exactly why MSE and BCE end up with such different shapes. Keep this as a throughline for the rest
+> of Part 1; §8 returns to it once you've seen a surrogate loss concretely.
+
 ---
 
 ## 2. Mean Squared Error (MSE)
@@ -639,9 +652,11 @@ The gradient — and here is the practical payoff:
 $$\frac{\partial \mathcal{L}_\delta}{\partial e} = \begin{cases} e & |e| \le \delta \\ \delta \cdot \text{sign}(e) & |e| > \delta \end{cases}$$
 
 **The gradient is capped at $\pm\delta$.** No matter how catastrophically wrong a single example is,
-it can never push the parameters harder than $\delta$. This is *identical in effect to gradient
-clipping*, a technique you'll meet again in deep learning — Huber achieves it by construction rather
-than by post-hoc surgery on the gradient.
+it can never push the parameters harder than $\delta$. This is *identical in effect to* **gradient
+clipping** — a technique you'll meet again in deep learning, which clips the gradient (its norm, or
+elementwise its values) to a maximum threshold *before* it's used in the update step, so a single bad
+batch cannot throw the parameters an arbitrarily large distance. Huber achieves the same capping *by
+construction*, baked into the loss itself, rather than by that post-hoc surgery on the gradient.
 
 ### 🧪 Worked example
 
@@ -1081,15 +1096,11 @@ loss in this lecture does that. It is the entire idea of a margin.
 (The slide's own interactive figure shows exactly this case: $y\cdot f(x) = 0.50$, hinge loss
 $0.500$, "Classified correctly? Yes", "Inside margin? Yes".)
 
-> 📚 **Background the slide assumed — 0/1 loss and surrogates.** What you *actually* want to minimise
-> for classification is the **0/1 loss**: 1 if wrong, 0 if right. It is exactly the error rate. But
-> it is piecewise constant, so its gradient is zero everywhere it's defined and undefined at the
-> jump — completely useless for gradient descent, and minimising it exactly is NP-hard in general.
->
-> So we minimise a **surrogate**: a convex function that sits *above* the 0/1 loss and can be
-> descended. Hinge, logistic and exponential (AdaBoost's) losses are the three classical surrogates.
-> All three are upper bounds on 0/1 loss, so driving the surrogate down drives the error rate down.
-> **This is the reason classification losses look the way they do**, and the slides never say it.
+> 📚 **Callback — 0/1 loss and surrogates**, in full back in §1 before MSE. Now that you've seen BCE,
+> CE and hinge concretely, the payoff is visible: all three are convex upper bounds on the 0/1 loss
+> (piecewise-constant, zero gradient almost everywhere, NP-hard to minimise directly), so descending
+> any of them provably descends the true error rate. That single fact is why classification losses
+> look nothing like regression losses.
 
 ---
 
@@ -1122,6 +1133,41 @@ Slide [`slide_010`, 12:46] states the goal:
 >
 > - **Overfitting** — training loss low, validation loss high. Model memorised.
 > - **Underfitting** — both high. Model too simple, or trained too little.
+>
+> 💡 These are symptoms, not mechanism. **This is exactly the bias/variance trade-off** — underfitting
+> *is* high bias, overfitting *is* high variance — the full mechanism behind why is in §21.
+
+> 📚 **Background — what regularisation is, generally.** Every defence against overfitting listed
+> above shares one shape: **add a penalty for complexity to the thing you minimise**, so the optimiser
+> is no longer free to chase the training sample at any cost.
+>
+> The formula says: **minimise the usual average loss, plus a second term that grows whenever the
+> parameters get "big" or "complicated", traded off by a knob you choose.**
+>
+> $$\text{objective}(\theta) = \underbrace{\frac1n\sum_i \mathcal{L}\big(y_i, f(x_i;\theta)\big)}_{\text{fit the data}} \;+\; \underbrace{\lambda\, R(\theta)}_{\text{stay simple}}$$
+>
+> | Symbol | Read it as | What it means |
+> |---|---|---|
+> | $R(\theta)$ | "the regulariser" | A function that grows as $\theta$ grows in whatever sense you pick. |
+> | $\lambda$ | "lambda" | Hyperparameter trading fit against simplicity. $\lambda=0$ is plain ERM (above); $\lambda\to\infty$ ignores the data entirely. |
+>
+> **L2 regularisation** sets $R(\theta) = \|\theta\|_2^2 = \sum_j \theta_j^2$. Its gradient is $2\theta$
+> — a force pulling **every** weight toward zero, in proportion to its own size: big weights feel a
+> big pull, small weights a small one, and a weight already at exactly 0 feels none. Result: weights
+> shrink **uniformly and smoothly**, the fitted function can no longer lean hard on any single
+> feature, and — per the bias-variance decomposition in §21 — that smoothness trades a little bias for
+> a lot less variance. That is the entire mechanism behind "regularisation prevents overfitting": a
+> deliberate, tunable amount of bias, bought to reduce variance.
+>
+> **L1 regularisation** sets $R(\theta) = \|\theta\|_1 = \sum_j |\theta_j|$. Its gradient is
+> $\pm 1$ regardless of the weight's size — the same constant-magnitude shape as MAE's gradient (§3)
+> — strong enough to push small weights all the way to **exactly** zero. That's why L1 produces
+> **sparse** models (many weights exactly 0 — automatic feature selection) while L2 only ever produces
+> *small*, non-zero weights.
+>
+> This is the general story. You'll see this exact $\lambda\cdot R(\theta)$ shape three more times in
+> this lecture — Ridge regression a few paragraphs below, AdamW's weight decay in §13, and the SVM
+> objective in §23 — each time applied to a different problem, never re-derived from scratch.
 
 The slide then names the two families and asks the organising question:
 
@@ -1163,8 +1209,8 @@ forms". Three reasons it doesn't scale:
 3. **Existence.** $(X^\top X)^{-1}$ requires $X^\top X$ to be invertible. It is not, whenever two
    features are perfectly correlated or $d > n$. Both are routine.
 
-**Ridge regression is the fix for (3),** and it is worth seeing because it explains why L2
-regularisation is numerically as well as statistically motivated:
+**Ridge regression is the fix for (3).** It adds exactly the L2 penalty defined in the regularisation
+background box above — here is the numerical bonus that comes free with the statistical one:
 
 $$w^*_{\text{ridge}} = (X^\top X + \lambda I)^{-1}X^\top y$$
 
@@ -1572,10 +1618,12 @@ problem, and it is the whole reason for its dominance.
 
 ### AdamW — fixing Adam's weight decay
 
-> **The bug.** L2 regularisation adds $\lambda\|w\|^2$ to the loss, which adds $2\lambda w$ to the
-> gradient. In Adam, that added term then goes through the $/\sqrt{\hat v}$ division — so parameters
-> with large historical gradients get *less* weight decay than parameters with small ones. That is
-> the opposite of the intent: weight decay is meant to be a uniform pull toward zero.
+> **The bug.** Recall from §9's regularisation background: L2 regularisation adds $\lambda\|w\|^2$ to
+> the loss precisely so its $2\lambda w$ gradient term pulls **every** weight uniformly toward zero,
+> in proportion to its own size. In Adam, that added term then goes through the $/\sqrt{\hat v}$
+> division — so parameters with large historical gradients get *less* weight decay than parameters
+> with small ones. That is the opposite of the intent: the pull toward zero was supposed to be
+> uniform, not rescaled by each parameter's own gradient history.
 >
 > **The fix (AdamW).** *Decouple* it — don't put decay in the gradient at all; subtract it directly
 > from the weights after the Adam step:
@@ -2436,7 +2484,9 @@ outcome here, but it can and does.
 
 ### Choice of K — the bias–variance argument
 
-> 📚 **Background the slide assumed — bias and variance.**
+> 📚 **Background the slide assumed — bias and variance.** Recall the **overfitting** / **underfitting**
+> symptoms from §9 (training loss low & validation high; both high) — this is the mechanism behind
+> them: underfitting *is* high bias, overfitting *is* high variance.
 > - **Bias** — error from the model being too simple to represent the truth. It's wrong the *same
 >   way* every time.
 > - **Variance** — error from the model being too sensitive to the particular training sample. Retrain
@@ -2670,7 +2720,9 @@ $$\min_{\mathbf{w},b,\xi}\ \tfrac12\|\mathbf{w}\|^2 + C\sum_{i=1}^{n}\xi_i \quad
 | $\xi_i > 1$ | **misclassified** |
 
 **And the slack is exactly the hinge loss.** The smallest $\xi_i$ satisfying the constraint is
-$\xi_i = \max(0,\ 1 - y_i(\mathbf{w}^\top\mathbf{x}_i+b))$. Substituting it in:
+$\xi_i = \max(0,\ 1 - y_i(\mathbf{w}^\top\mathbf{x}_i+b))$. Substituting it in — and recognising
+$\tfrac12\|\mathbf{w}\|^2$ as precisely the L2 penalty from §9's regularisation background box,
+applied here to the margin instead of to a plain empirical-risk minimiser:
 
 $$\min_{\mathbf{w},b}\ \underbrace{\tfrac12\|\mathbf{w}\|^2}_{\text{L2 regularisation}} + C\sum_i \underbrace{\max(0, 1 - y_i f(\mathbf{x}_i))}_{\text{hinge loss}}$$
 
@@ -2968,10 +3020,13 @@ MSE squares the error, MAE takes its absolute value. Three consequences:
 
 - **Outliers:** MSE's quadratic penalty means one bad point can outvote a hundred good ones. MAE is
   robust.
-- **What they estimate:** MSE's optimum is the **mean** of the conditional target distribution,
-  MAE's is the **median**. I can show that in two lines — set the derivative to zero and the MSE
-  condition is "sum of residuals is zero" (the mean), while the MAE condition is "equal counts above
-  and below" (the median).
+- **What they estimate:** MSE's optimum is the **mean** of the conditional target distribution, MAE's
+  is the **median** — full derivation in §2/§3, and I can reproduce it cold on a whiteboard (derivation
+  ① below). The version I'd give a non-technical stakeholder: MSE lets one huge complaint outshout a
+  hundred small ones, because it *squares* the size of the complaint before counting it; MAE gives
+  every complaint exactly one vote no matter how large, so the "typical" answer wins instead of the
+  answer that appeases the loudest outlier. That's why a demand forecast trained on MSE chases your
+  rare huge-spike days, and one trained on MAE tracks your ordinary day instead.
 - **Optimisation:** MSE is differentiable everywhere and its gradient shrinks near the optimum, so it
   converges cleanly. MAE has a kink at zero requiring sub-gradients, and its gradient is constant, so
   it bounces around the minimum unless you decay the learning rate.

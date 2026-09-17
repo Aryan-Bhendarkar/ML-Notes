@@ -31,10 +31,11 @@ video: "https://www.youtube.com/watch?v=wIeQ-BwtDF0"
 > > `[f37]` at 31:00 shows the heading *"K-Fold Cross Validation:"* with its sub-bullets not yet
 > > animated in; the next captured frame `[f38]` at 32:30 has already advanced to
 > > *"Leave-One-Out CV"*. Ninety seconds of that slide's body — almost certainly the K-fold
-> > mechanics and the Stratified K-Fold bullet — fell between two forced samples. I teach K-fold
-> > and stratified K-fold in full in §11 from the notebook's Section 7, which restates them
-> > (`[f130]`, 53:53), and from Part 1 §6 where the same material appears. Nothing in §11 is
-> > invented, but **the deck's exact wording on that half-slide is unrecovered.**
+> > mechanics and the Stratified K-Fold bullet — fell between two forced samples. K-fold's
+> > mechanics are taught in full in Part 1 §5, which §11 now points back to rather than repeating;
+> > §11 teaches the Stratified K-fold variance derivation from the notebook's Section 7 restatement
+> > (`[f130]`, 53:53) — genuinely new material, not a re-teaching. Nothing in §11 is invented, but
+> > **the deck's exact wording on that half-slide is unrecovered.**
 >
 > One smaller gap: the model-selection **leaderboard** cell (`df_leader`) is visible as
 > *unexecuted* (`[ ]:`) in `[f142]`/`[f143]` at 55:11–55:29. Its output never appeared on screen,
@@ -824,6 +825,27 @@ A feature that drives splits which overfit gets high importance for it.
 > unseen data?", which is usually the question you meant. It costs a full re-scoring per feature, is
 > computed on held-out data, and is not biased by cardinality. `sklearn.inspection.permutation_importance`.
 > For per-prediction attribution rather than global ranking, SHAP values are the standard.
+
+### 🧪 Worked illustration — what permutation importance would show here
+
+> ⚠️ **Illustrative, not from the lecture's notebook.** The capture never shows
+> `permutation_importance` actually being run on this dataset — only impurity importance is printed
+> `[f107]`. The feature names and the impurity ranking below are real (§5 above); the permutation
+> column is a plausible illustration of the textbook behaviour on correlated features, not a reported
+> result.
+
+| Feature | Impurity importance (real ranking) | Permutation importance (illustrative) |
+|---|---|---|
+| 2nd sem (approved) — real #1 | highest | **stays highest** — no correlated substitute |
+| 2nd sem (grade) — real #2 | high | **collapses** — 1st sem (grade) covers for it when shuffled |
+| 1st sem (grade) — real #4 | moderate | **collapses too** — same redundancy, other direction |
+
+**The mechanism named two paragraphs up, made concrete.** 2nd sem (grade) and 1st sem (grade) are
+correlated — shuffle either one and the tree just leans on the other, so the score barely moves and
+permutation importance reports both as nearly worthless *individually*, even though together they
+carry real signal. 2nd sem (approved) has no such stand-in, so its permutation drop tracks its
+impurity share closely. **Low permutation importance on a correlated pair means "redundant," not
+"irrelevant."**
 
 > 🎯 **Interview.** *"Your Random Forest says feature X is the most important. What do you conclude?"*
 > The strong answer names all three caveats above, then says what you'd actually do: **check
@@ -1819,6 +1841,68 @@ insight: Rebalancing moves predictions OUT of the majority diagonal cell and INT
 fallback: The four-row table in §10.5, and the −2.7 vs +10.6 comparison beneath it.
 ```
 
+### 10.6 🧪 Worked: precision/recall as the threshold moves — the "free fix," demonstrated once
+
+§10.3 said threshold-moving is free; §14.1 mentions "offer a scholarship when risk exceeds 60%"; the
+applied scenario near the end of this file sets a threshold from a cost ratio. None of those sections
+show it happening to real numbers. Here it is, using probabilities and confusion-matrix counts this
+lecture's own notebook actually produced.
+
+**Two real operating points already sit in this file, though neither section called them a
+"threshold."** They aren't a sweep of one classifier — OvR and OvO are different strategies, not one
+model at two cutoffs — but §9.4 already computed precision and recall for "Enrolled vs rest" under
+both, and each is really a different implicit decision boundary on how confident the model must be
+before it says "Enrolled":
+
+| Strategy (its own default operating point) | Precision | Recall |
+|---|---|---|
+| OvR | **0.512** | **0.264** |
+| OvO | **0.558** | **0.365** |
+
+Moving from OvR's boundary to OvO's caught 10 more points of recall *and* gained nearly 5 points of
+precision on the same class — real numbers, already derived in §9.4, showing the same kind of trade a
+probability threshold controls directly. Now do it inside *one* classifier, with an actual threshold.
+
+**§16.4's round-trip gave three real calibrated `P(Enrolled)` values on held-out students:**
+
+| Row | True class | `P(Enrolled)` |
+|---|---|---|
+| 0 | Graduate | 0.063 |
+| 1 | Graduate | 0.127 |
+| 2 | **Enrolled** | 0.250 |
+
+**At the default threshold, $t=0.5$** (predict "Enrolled" only if `P(Enrolled) > t`): all three
+probabilities are below it, so all three are predicted *not* Enrolled — including row 2, the one real
+Enrolled student in the sample. This is not a coincidence of these three rows: it is the same
+mechanism behind §9.4's real recall of **0.264** at the default boundary — `P(Enrolled)` runs
+systematically low even for genuine Enrolled students, because Enrolled overlaps heavily with
+Graduate in feature space (§16.4).
+
+**Lower it to $t=0.2$:** row 2 (`P=0.250`) now crosses the line and is correctly caught. Rows 0 and 1
+(`0.063`, `0.127`) stay below it and are still correctly rejected. Recall on this real Enrolled
+student goes from miss to catch, for a threshold change that touches no weights and needs no
+retraining.
+
+> ⚠️ **What's real and what isn't, here.** The three `P(Enrolled)` values and the 0.264/0.365 recall
+> figures are all real notebook output. A genuine precision/recall-*curve* across several thresholds
+> would need probabilities for the full 885-row test set, which this lecture's notebook never
+> printed — only these three rows survived the round-trip demo (§16.4). What these three rows
+> legitimately show is the *mechanism* — a real Enrolled student sitting just below the default cut,
+> caught by a lower one — which is exactly what the aggregate OvR-vs-OvO comparison above already
+> confirmed with real, larger-sample numbers.
+
+**Where you'd actually set $t$: the same cost-ratio logic as the applied scenario, below.** Suppose —
+illustratively; these are not the lecture's numbers — an advising outreach to a flagged student costs
+**\$50**, and missing a student who needed it costs the institution roughly **\$3,000** in lost
+tuition and re-recruitment. The break-even threshold is
+
+$$t^* = \frac{\text{cost of a false positive}}{\text{cost of a false positive} + \text{cost of a false negative}} = \frac{50}{50 + 3000} \approx \mathbf{0.016}$$
+
+Not 0.5. At that cost ratio the institution should flag almost anyone with a non-trivial
+`P(Enrolled)`, trading a lot of precision for recall — for the same reason §10.5's rebalancing traded
+accuracy for minority-class F1: a false positive here is a cheap advising email, a false negative is a
+lost student. This is the "free fix" §10.3 promised, worked to an actual number instead of asserted.
+
 ---
 
 ## 11. Cross-validation
@@ -1826,67 +1910,17 @@ fallback: The four-row table in §10.5, and the −2.7 vs +10.6 comparison benea
 Two deck slides, 14 and 15. Slide 14 is the one with the capture gap (see the note at the top); slide
 15 is fully captured at `[f39]` (33:55).
 
-### 11.1 K-fold — the mechanics
+### 11.1 K-fold — what Part 1 already covers, and what's new here
 
-> ⚠️ Reconstructed from `[f37]`'s heading ("K-Fold Cross Validation:"), the deck's diagram (fully
-> visible in `[f37]`), and the notebook's Section 7 restatement at `[f130]`. The deck's exact
-> sub-bullet wording is unrecovered.
-
-The diagram `[f37]` is unambiguous and worth transcribing exactly, because it *is* the algorithm:
-
-```svg
-<svg viewBox="0 0 560 250" role="img" aria-label="5-fold cross-validation" font-family="system-ui,sans-serif">
-  <style>
-    .tr{fill:#2C2820;stroke:#4C4739}.va{fill:#1E3025;stroke:#4FA073}
-    .lab{fill:#B4AA95;font-size:11.5px}.cell{fill:#EDE6D7;font-size:11px;font-weight:600}
-    .h{fill:#EDE6D7;font-size:12.5px;font-weight:700}
-  </style>
-  <text class="h" x="10" y="16">5-fold cross-validation — the validation fold rotates</text>
-  <g transform="translate(70,28)">
-    <text class="lab" x="30" y="10">Chunk 1</text><text class="lab" x="126" y="10">Chunk 2</text><text class="lab" x="222" y="10">Chunk 3</text><text class="lab" x="318" y="10">Chunk 4</text><text class="lab" x="414" y="10">Chunk 5</text>
-  </g>
-  <g transform="translate(70,34)">
-    <g transform="translate(0,0)">
-      <text class="lab" x="-58" y="27">Iter 1</text>
-      <rect class="va" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
-      <text class="cell" x="46" y="27" text-anchor="middle">Val</text>
-    </g>
-    <g transform="translate(0,32)">
-      <text class="lab" x="-58" y="27">Iter 2</text>
-      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="va" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
-      <text class="cell" x="142" y="27" text-anchor="middle">Val</text>
-    </g>
-    <g transform="translate(0,64)">
-      <text class="lab" x="-58" y="27">Iter 3</text>
-      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="va" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
-      <text class="cell" x="238" y="27" text-anchor="middle">Val</text>
-    </g>
-    <g transform="translate(0,96)">
-      <text class="lab" x="-58" y="27">Iter 4</text>
-      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="va" x="288" y="10" width="92" height="26"/><rect class="tr" x="384" y="10" width="92" height="26"/>
-      <text class="cell" x="334" y="27" text-anchor="middle">Val</text>
-    </g>
-    <g transform="translate(0,128)">
-      <text class="lab" x="-58" y="27">Iter 5</text>
-      <rect class="tr" x="0" y="10" width="92" height="26"/><rect class="tr" x="96" y="10" width="92" height="26"/><rect class="tr" x="192" y="10" width="92" height="26"/><rect class="tr" x="288" y="10" width="92" height="26"/><rect class="va" x="384" y="10" width="92" height="26"/>
-      <text class="cell" x="430" y="27" text-anchor="middle">Val</text>
-    </g>
-  </g>
-  <text class="lab" x="10" y="242">Train = K−1 folds fit the model · Val = 1 fold scores it · final metric = mean of the 5 scores</text>
-</svg>
-```
-
-**The procedure:** shuffle, cut the training data into $K$ equal chunks, then $K$ times: hold one
-chunk out, fit on the other $K-1$, score on the held-out chunk. Average the $K$ scores.
-
-**What you gain over a single train/validation split:**
-- **Every row is used for validation exactly once**, and for training $K-1$ times. Nothing is wasted.
-- The reported metric is a **mean of $K$ estimates**, so its variance is roughly $1/K$ of a single
-  split's — you get an error bar for free (the standard deviation across folds).
-- The estimate no longer depends on which particular rows you happened to put in your validation set.
-
-**What it costs:** $K$ model fits instead of one. With $K=5$ that is 5× the compute, which is why
-`cv=3` shows up in the notebook's `GridSearchCV` calls `[f141]`.
+> 💡 **Part 1 §5 taught K-fold's procedure, diagram, error-bar rationale, and compute cost, in full,**
+> with its own worked numbers — go there for the mechanics; this section does not repeat them. What's
+> genuinely new to this lecture is below: Stratified K-fold's variance derivation (this subsection),
+> Leave-One-Out CV (§11.2), and the time-series caveat (§11.3).
+>
+> ⚠️ One sourcing note, for the record: the deck's own K-fold slide (`[f37]`) has a capture gap — its
+> heading is visible but the sub-bullets weren't captured (see the note at the top of this file).
+> Nothing below depends on the missing part; it comes from the notebook's own restatement `[f130]`
+> and from Part 1 §5.
 
 📚 **Background the slide assumed — stratified K-fold.** The notebook `[f130]` states it directly:
 
@@ -3018,16 +3052,17 @@ Ranked easy → hard. Questions 8–12 require combining two concepts.
 <details>
 <summary><b>1.</b> What is Gini impurity, and why is it 0.5 at maximum?</summary>
 
-Gini impurity is the probability that two rows drawn independently at random from a node belong to
-different classes. Draw once, get class $i$ with probability $p_i$; draw again independently, also
-class $i$ with probability $p_i$. So they match with probability $\sum_i p_i^2$, and differ with
-probability $1 - \sum_i p_i^2$ — that's Gini.
+Derive the bounds yourself before checking: start from "pick two rows independently — Gini is the
+probability they disagree," write the probability they *match*, and find where $1-\sum_i p_i^2$ is
+maximised. Full derivation, the worked numeric check, and the $K=3$ trap: **§2.1**.
 
-It is 0 when a node is pure, because two draws always match. Its maximum is at the uniform
-distribution $p_i = 1/K$, giving $1 - K(1/K)^2 = 1 - 1/K$.
+<details>
+<summary>Check your answer</summary>
 
-**The 0.5 figure is binary-specific** — that's $1 - 1/2$. For three classes the ceiling is 0.667, for
-ten it's 0.9. I'd be careful about quoting 0.5 on a multi-class problem.
+Match probability is $\sum_i p_i^2$, so Gini $=1-\sum_i p_i^2$. It's 0 at $p_i=1$ (draws always
+match) and maximised at $p_i=1/K$, giving $1-1/K$. **0.5 is the binary case only** — $K=3$ gives
+0.667, $K=10$ gives 0.9. Quoting 0.5 on a multi-class problem is a common interview slip.
+</details>
 </details>
 
 <details>
@@ -3060,93 +3095,113 @@ one hyperparameter.
 <details>
 <summary><b>3.</b> Explain bagging. Why does it reduce variance but not bias?</summary>
 
-Bagging trains $B$ models on bootstrap samples — draws of $n$ rows with replacement — and combines
-them by majority vote or averaging.
+Derive both halves yourself before checking. **Bias:** what is $\mathbb{E}[T_b(x)]$ for one
+bootstrap-trained tree, and what happens when you average $B$ of them? **Variance:** write
+$\operatorname{Var}(\frac1B\sum_b T_b)$ for correlated $T_b$ and say which term survives as
+$B\to\infty$. Full derivation: **§6.1**.
 
-**Bias is unchanged, provably.** Each tree is fit to a sample from the same distribution, so
-$\mathbb{E}[T_b(x)] = \mu(x)$ for every $b$. The ensemble's expectation is
-$\frac1B \sum_b \mathbb{E}[T_b(x)] = \mu(x)$ — identical to one tree's. Averaging doesn't move an
-expectation.
+<details>
+<summary>Check your answer</summary>
 
-**Variance falls** by the standard result for an average of correlated variables:
-$\operatorname{Var}(\frac1B\sum T_b) = \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$. The second term
-shrinks like $1/B$.
-
-That's why bagging wants **deep** base learners: it can only remove variance, so you feed it a model
-whose only problem is variance. Fully grown trees are exactly that — near-zero bias, huge variance.
+Every tree has the same expectation $\mu(x)$ (same distribution), so averaging doesn't move it — bias
+is untouched. Variance is $\rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$; the second term vanishes with
+$B$, the first doesn't. **So bagging wants deep, low-bias/high-variance base learners** — it only has
+a lever for the half of the problem those trees have.
+</details>
 </details>
 
 <details>
 <summary><b>4.</b> What's the difference between Random Forest and plain bagging, and why does it help?</summary>
 
-Random Forest is bagging **plus** a random subset of features considered at each split — typically
-$\sqrt{d}$ for classification, $d/3$ for regression.
+Answer from the formula, not from memory: why does $\rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$ have a
+floor that more trees can't remove, why does plain bagging leave $\rho$ high, and what specific change
+does Random Forest make to attack it? Full argument, the numeric $\rho$-vs-variance table, and the
+0.753 → 0.769 result: **§6.2**.
 
-The reason is the variance formula: $\operatorname{Var} = \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$.
-The second term vanishes as you add trees; **the first does not.** $\rho\sigma^2$ is a floor.
+<details>
+<summary>Check your answer</summary>
 
-Plain bagging leaves $\rho$ high, because bootstrap samples overlap by about 63% and the greedy
-algorithm, given the same features, mostly picks the same strong feature at the root. So the trees
-come out similar. Feature subsampling makes the dominant feature *unavailable* in most trees, forcing
-different roots and genuinely different structures — $\rho$ drops, and the floor drops with it.
-
-The trade is that hiding features makes each individual tree worse. That's fine: you're trading a
-small increase in $\sigma^2$ for a large decrease in $\rho$, and the formula says that's a winning
-trade. **Random Forest deliberately handicaps every tree to improve the ensemble.**
-
-Numerically, in the lecture's demo: bagging 0.753, Random Forest 0.769. That 1.6 points is purely
-the $\rho$ effect.
+Random Forest = bagging + a random feature subset ($\sqrt d$ classification, $d/3$ regression) at
+every split. Plain bagging's bootstrap samples overlap ~63%, so trees mostly pick the same dominant
+feature at the root and end up correlated ($\rho$ high) — and $\rho\sigma^2$ is a floor no amount of
+$B$ buys past. Hiding features forces different roots, cutting $\rho$ at the cost of a small rise in
+each tree's own $\sigma^2$. **A deliberately worse tree, for a better ensemble.** Lecture numbers:
+bagging 0.753 → RF 0.769, purely the $\rho$ effect.
+</details>
 </details>
 
 <details>
 <summary><b>5.</b> What is out-of-bag error and why is it "free"?</summary>
 
-For any bootstrap sample, a given row has probability $(1-1/n)^n$ of never being drawn, which
-converges to $e^{-1} = 0.368$. So about 36.8% of rows are out-of-bag for each tree.
+Derive the 36.8% yourself: what's the probability one row is never drawn in $n$ draws with
+replacement, and what does that converge to? Then say how you'd turn that into a validation score
+without holding out any data, and name a case where you shouldn't trust it. Full derivation and the
+lecture's numbers: **§6.3**.
 
-To score row $i$, poll only the trees that never saw it and take their majority vote. Do that for
-every row and you get an honest held-out estimate — using no held-out data. It's free because those
-predictions are a by-product of training you'd have done anyway.
+<details>
+<summary>Check your answer</summary>
 
-In the lecture's run, OOB was 0.774 against a true test score of 0.769 — within half a point.
-
-**Caveat I'd raise:** OOB assumes exchangeable rows. With time-ordered data it's optimistic in
-exactly the way random K-fold is, since the "unseen" rows are interleaved in time with training rows.
-With grouped data (multiple rows per customer) it leaks across the group. In both cases I'd ignore
-OOB and use a proper temporal or grouped split.
+$P(\text{row never drawn}) = (1-1/n)^n \to e^{-1} = 0.368$, so ~37% of rows are out-of-bag per tree.
+Score each row using only the trees that never saw it — a held-out estimate as a free by-product of
+training. Lecture: OOB 0.774 vs true test 0.769. **Breaks** on time-ordered data (unseen rows are
+interleaved in time — same problem as random K-fold) and grouped data (leaks across the group).
+</details>
 </details>
 
 <details>
-<summary><b>6.</b> Explain gradient boosting. Why is it called "gradient"?</summary>
+<summary><b>6.</b> Explain gradient boosting. How does XGBoost's Newton boosting actually differ from it?</summary>
 
-It's an additive model $F_M(x) = \sum_m \alpha_m h_m(x)$ built greedily. Start with a constant. At
-each round, compute the negative gradient of the loss **with respect to the current predictions**,
-fit a shallow regression tree to those pseudo-residuals, and add a shrunken version of it:
-$F_m = F_{m-1} + \eta h_m$.
+The mechanics of the additive model and the pseudo-residual step are in §7.3 — I won't re-derive them
+here. What's worth knowing cold instead is the contrast with what XGBoost actually does, because
+"gradient boosting" undersells it.
 
-The name is literal. Ordinary gradient descent moves in *parameter* space: $w \leftarrow w - \eta\nabla_w L$.
-Gradient boosting moves in *function* space: $F \leftarrow F + \eta h$ where $h \approx -\nabla_F L$.
-The trees are how you represent a step direction when your parameter is an entire function.
+**Friedman's gradient boosting is first-order.** Taylor-expand the loss around the current prediction
+to first order: $L(y,F_{m-1}+h) \approx L(y,F_{m-1}) + g\,h$, where $g=\partial L/\partial F$. Fit a
+tree $h_m$ to approximate $-g$ (the pseudo-residual), then take a step of size $\eta$ — a
+hyperparameter, not something derived from the loss's shape.
 
-"Fit the residuals" is the squared-loss special case: for $L = \frac12(y-F)^2$,
-$-\partial L/\partial F = y - F$, which *is* the residual. The gradient framing is what generalises —
-with log loss the pseudo-residual is $y_i - p_i$, with absolute loss it's $\operatorname{sign}(y_i - F_i)$.
-Change the loss and only that one step changes; everything else is the same code. That modularity is
-why one algorithm handles regression, classification, ranking, and survival analysis.
+**XGBoost is Newton boosting — second-order.** Keep the quadratic term too:
+$L \approx L_0 + g\,h + \tfrac12 H h^2$, where $H = \partial^2 L/\partial F^2$ is the Hessian. For a
+fixed tree structure this has a closed form: the optimal leaf weight is $w_j^* = -G_j/(H_j+\lambda)$
+— exactly the scalar Newton step $-f'/f''$, applied per leaf. The Hessian also enters the
+*split-finding* gain formula (§7.4), so XGBoost isn't just taking better steps with the same trees —
+it's growing different, better trees. Plain gradient boosting never sees $H$ at all.
+
+**They coincide for squared loss**, where $H_i = 1$ for every row (Prerequisite 6) — which is exactly
+why "fit the residuals" felt like the whole story before second-order methods existed. They diverge
+for log loss, where $H_i = p_i(1-p_i)$ is small for confident rows and large for uncertain ones:
+Newton boosting automatically takes smaller steps on rows it's already sure about, which a fixed
+learning rate has no way to do.
 </details>
 
 <details>
-<summary><b>7.</b> Bagging or boosting — how do you choose?</summary>
+<summary><b>7.</b> Bagging or boosting — how do you choose, and is the lecture's robustness result even real?</summary>
 
-I'd ask one question first: **how clean are the labels?**
+I'd ask one question first: **how clean are the labels?** — then I'd check whether "clean" is
+actually distinguishable from noise in whatever result I'm using to argue it, because that's the part
+people skip.
 
-Boosting focuses on whatever it currently gets wrong. A mislabelled row is *by construction* the row
-with the largest residual, so every round targets it, and with AdaBoost's exponential reweighting its
-influence compounds. Bagging is the opposite: a bad row appears in only ~63% of bootstrap samples,
-distorts one leaf in those trees, and gets outvoted by the rest.
+**The mechanism.** Boosting focuses on whatever it currently gets wrong. A mislabelled row is *by
+construction* the row with the largest residual, so every round targets it, and with AdaBoost's
+exponential reweighting its influence compounds. Bagging is the opposite: a bad row appears in only
+~63% of bootstrap samples, distorts one leaf in those trees, and gets outvoted by the rest.
 
-The lecture measured exactly this. Flipping training labels from 0% to 30%: Random Forest went 0.769
-→ 0.774, completely flat. Gradient boosting went 0.763 → 0.737, a monotone 2.6-point decline.
+**Before I trust the lecture's numbers, I'd size the noise floor.** 885 test rows at accuracy ≈0.77
+gives a standard error of $\sqrt{0.77\times0.23/885}\approx0.014$ — about **±1.4 points** per
+measurement. Read the two curves against that ruler, not against their raw values:
+
+- **Random Forest: 0.769 → 0.774 across 0→30% label noise** — a 0.5-point move, a third of one
+  standard error. That's not just "small," it's the signature of **no effect at all** — what two
+  draws of the same noise-free quantity look like.
+- **Gradient Boosting: 0.763 → 0.737** — a 2.6-point decline, roughly **two standard errors**, and
+  monotone across all five noise levels rather than one outlier point. A monotone trend that size
+  isn't sampling noise; it's a real signal.
+
+So the claim survives contact with its own error bars: RF's flatness is real *because* it's smaller
+than the noise floor, and GBM's decline is real *because* it's bigger than the noise floor and doesn't
+reverse. (Contrast RF's own 5%-noise reading of 0.783 — a 1.4-point jump from the 0% point I would
+**not** read as "noise helped RF"; it's a single point at exactly one SE, ordinary wobble, not a
+trend.)
 
 **So:** human-annotated labels, user-reported categories, or noisy proxies → start with Random
 Forest. Mechanically-derived, near-certain labels — did the payment charge back, did the package
@@ -3325,53 +3380,58 @@ The three you should be able to produce cold, in order of how often they're aske
 
 #### D1 — The bagging variance formula, and why Random Forest exists
 
-*Two minutes. This is the highest-value derivation in the lecture.*
+*Two minutes. This is the highest-value derivation in the lecture — and by this point you've already
+met it twice (Prerequisite 4, then again answering Q4). Third time: no notes.*
 
-**Step 1.** $B$ trees, each with prediction variance $\sigma^2$, pairwise correlation $\rho$.
+**On a blank whiteboard:** starting from $B$ trees with per-tree variance $\sigma^2$ and pairwise
+correlation $\rho$, derive $\operatorname{Var}(\frac1B\sum_b X_b)$, identify which term is a floor as
+$B\to\infty$, and say in one sentence why that's the whole justification for `max_features`. Full
+walk-through: **Prerequisite 4** and **§6.2**.
 
-$$\operatorname{Var}\!\left(\frac1B\sum_{b}X_b\right) = \frac{1}{B^2}\Big[\underbrace{\textstyle\sum_b \operatorname{Var}(X_b)}_{B \text{ terms of } \sigma^2} + \underbrace{\textstyle\sum_{b\neq b'}\operatorname{Cov}(X_b,X_{b'})}_{B(B-1)\text{ terms of }\rho\sigma^2}\Big]$$
+<details>
+<summary>Check your answer</summary>
 
-**Step 2.**
-$$= \frac{1}{B^2}\left[B\sigma^2 + B(B-1)\rho\sigma^2\right] = \frac{\sigma^2}{B} + \frac{B-1}{B}\rho\sigma^2$$
+$$\operatorname{Var}\!\left(\tfrac1B\sum_b X_b\right) = \frac{1}{B^2}\left[B\sigma^2 + B(B-1)\rho\sigma^2\right] = \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$$
 
-**Step 3.** Rearrange to the standard form:
-$$= \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$$
-
-**Step 4 — say the punchline out loud.** *"As $B \to \infty$ the second term goes to zero and the
-first doesn't. $\rho\sigma^2$ is a floor. So once you have a few hundred trees, adding more buys
-nothing, and the only remaining lever is reducing $\rho$ — which is exactly what `max_features` does.
-Random Forest makes each tree worse to make the trees more different, and the formula says that's the
-right trade."*
+The second term $\to 0$ as $B\to\infty$; $\rho\sigma^2$ does not — it's a floor no amount of $B$ buys
+past. Random Forest's feature subsampling exists purely to push $\rho$ down, trading a small rise in
+each tree's own $\sigma^2$ for a large drop in the floor.
+</details>
 
 #### D2 — The out-of-bag 36.8%
 
-*Thirty seconds. Almost always a warm-up.*
+*Thirty seconds. Almost always a warm-up — and by now you've derived it in §6.3 and again in Q5.*
 
-$$P(\text{row } i \text{ missed on one draw}) = 1 - \tfrac1n$$
-$$P(\text{missed on all } n \text{ draws}) = \left(1-\tfrac1n\right)^n$$
-$$\lim_{n\to\infty}\left(1-\tfrac1n\right)^n = e^{-1} = 0.3679$$
+**On a blank whiteboard:** $P$(one row missed on one draw with replacement) → $P$(missed on all $n$
+draws) → the limit as $n\to\infty$. Then say what you do with that number. Full version: **§6.3**.
 
-So ~36.8% out-of-bag, ~63.2% in-bag, and convergence is fast — at $n=100$ it's already 0.366.
+<details>
+<summary>Check your answer</summary>
 
-**Say the punchline:** *"Every row is unseen by about 37% of the trees, so poll only those trees to
-score it. That's a held-out estimate using no held-out data."*
+$$\left(1-\tfrac1n\right)^n \longrightarrow e^{-1} = 0.3679$$
+
+So ~36.8% out-of-bag, ~63.2% in-bag — and it converges fast (already 0.366 at $n=100$). Score each
+row using only the trees that never saw it: a held-out estimate that costs no held-out data.
+</details>
 
 #### D3 — Random search: 60 trials, 95% probability, top 5%
 
-*One minute. Impresses because most candidates only quote it.*
+*One minute. Impresses because most candidates only quote it — you're deriving it a second time here
+(§12.3 was the first), so it should be fast.*
 
-Define "good" = top 5% of configuration space. Draw $n$ configs independently and uniformly.
+**On a blank whiteboard:** define "good" as top-5%, write $P$(all $n$ random draws miss), solve for
+$n$ at 95% confidence, and say the one property of the answer that makes it a stronger argument than
+"random search often wins." Full derivation: **§12.3**.
 
-$$P(\text{one draw misses}) = 0.95 \quad\Rightarrow\quad P(\text{all } n \text{ miss}) = 0.95^n$$
-$$P(\text{at least one good}) = 1 - 0.95^n \;\ge\; 0.95$$
-$$\Longleftrightarrow\; 0.95^n \le 0.05 \;\Longleftrightarrow\; n \ge \frac{\ln 0.05}{\ln 0.95} = \frac{-2.9957}{-0.05129} = 58.4$$
+<details>
+<summary>Check your answer</summary>
 
-So $n = 59$; 60 gives $1 - 0.95^{60} = 0.954$.
+$$1-0.95^n \ge 0.95 \;\Longleftrightarrow\; n \ge \frac{\ln 0.05}{\ln 0.95} = 58.4 \;\Rightarrow\; n=59\ (60\text{ in practice})$$
 
-**Say the punchline:** *"Notice the dimension of the search space never appears. Sixty trials works
-for 2 hyperparameters or 20, while grid search costs $v^p$. That's the real argument — and the
-second one is that grid search wastes trials re-testing duplicate values of whichever knob actually
-matters."*
+Check: $1-0.95^{60}=0.954$. **The dimension of the search space never appears in the derivation** —
+60 trials works whether you're tuning 2 hyperparameters or 20, while grid search's cost is $v^p$.
+That independence from dimension is the actual argument, not "it often works better."
+</details>
 
 ---
 
